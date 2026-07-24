@@ -1,0 +1,2910 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>우리 반 가상 미술관 (Class Virtual Gallery)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#0a0908; font-family:"Noto Sans KR","Malgun Gothic",sans-serif; }
+  canvas { display:block; }
+
+  /* ---------- 시작 화면 / 로그인 화면 공통 배경 ---------- */
+  #authScreen, #startScreen {
+    position:fixed; inset:0; z-index:50; overflow-y:auto;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:
+      linear-gradient(180deg, rgba(20,14,8,0.28) 0%, rgba(12,9,6,0.5) 65%, rgba(8,6,4,0.65) 100%),
+      url('assets/gallery_background_pc.jpg') center/cover no-repeat;
+    color:#fff8ec; text-align:center; padding:24px;
+  }
+  #startScreen { display:none; }
+  @media (max-width: 640px), (pointer:coarse) and (hover:none) {
+    #authScreen, #startScreen {
+      background:
+        linear-gradient(180deg, rgba(20,14,8,0.25) 0%, rgba(12,9,6,0.5) 60%, rgba(8,6,4,0.68) 100%),
+        url('assets/gallery_background_mobile.jpg') center/cover no-repeat;
+    }
+  }
+  #authScreen h1, #startScreen h1 {
+    font-size:44px; font-weight:800; letter-spacing:1px; margin-bottom:10px;
+    color:#fffaf1; text-shadow:0 2px 16px rgba(0,0,0,0.6);
+  }
+  #authScreen .sub, #startScreen .sub {
+    font-size:15px; color:#f0dcb8; margin-bottom:26px; letter-spacing:3px; font-weight:600;
+    text-shadow:0 2px 10px rgba(0,0,0,0.5);
+  }
+  #enterBtn {
+    background:linear-gradient(135deg, #f2b768, #d9813d);
+    color:#2b1a0d; border:none; padding:16px 46px;
+    font-size:17px; font-weight:800; border-radius:32px; cursor:pointer;
+    letter-spacing:1.5px; box-shadow:0 10px 26px rgba(0,0,0,0.4);
+    transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  #enterBtn:hover {
+    background:linear-gradient(135deg, #ffc57e, #e8944e);
+    transform:translateY(-2px) scale(1.02);
+    box-shadow:0 12px 30px rgba(0,0,0,0.5);
+  }
+  #guide {
+    margin-top:28px; font-size:13.5px; color:#f4ead6; line-height:1.7;
+    background:rgba(20,14,9,0.5); backdrop-filter:blur(4px);
+    border:1px solid rgba(255,222,170,0.2);
+    padding:18px 26px; border-radius:14px; max-width:420px;
+  }
+  #guide .device-label {
+    display:block; font-weight:800; letter-spacing:0.5px; margin:0 0 4px;
+  }
+  #guide .device-label.pc { color:#7fd8ff; }
+  #guide .device-label.mobile { color:#ffd166; }
+  #guide .device-block { margin-bottom:14px; }
+  #guide .device-block:last-child { margin-bottom:0; }
+  #guide b { font-weight:700; color:inherit; }
+
+  /* ---------- 시작 화면 QR코드(학부모 스캔용) ---------- */
+  #qrEntryBox {
+    margin-top:18px; display:flex; flex-direction:column; align-items:center; gap:9px;
+    background:rgba(20,14,9,0.5); backdrop-filter:blur(4px);
+    border:1px solid rgba(255,222,170,0.2);
+    padding:16px 22px 14px; border-radius:14px; max-width:420px;
+  }
+  #qrEntryBox.hidden { display:none; }
+  .qr-canvas-wrap { background:#fff8ec; padding:8px; border-radius:10px; line-height:0; }
+  .qr-canvas-wrap img, .qr-canvas-wrap canvas { display:block; width:104px; height:104px; }
+  .qr-caption { font-size:12.5px; color:#f0dcb8; line-height:1.6; text-align:center; }
+  #qrCopyLinkBtn {
+    margin-top:2px; background:transparent; border:1px solid rgba(255,222,170,0.35);
+    color:#f0dcb8; font-size:12px; font-weight:700; padding:6px 14px;
+    border-radius:20px; cursor:pointer; transition:background .15s ease;
+  }
+  #qrCopyLinkBtn:hover { background:rgba(255,222,170,0.12); }
+  @media (max-width: 640px) {
+    #qrEntryBox { padding:12px 16px 11px; }
+    .qr-canvas-wrap img, .qr-canvas-wrap canvas { width:88px; height:88px; }
+  }
+
+  /* ---------- 로그인 카드 ---------- */
+  .auth-card {
+    background:rgba(20,14,9,0.62); backdrop-filter:blur(6px);
+    border:1px solid rgba(255,222,170,0.22);
+    border-radius:18px; padding:30px 32px 26px;
+    width:100%; max-width:360px;
+    box-shadow:0 18px 40px rgba(0,0,0,0.45);
+  }
+  #authTabs { display:flex; gap:8px; margin-bottom:18px; background:rgba(0,0,0,0.25); border-radius:10px; padding:4px; }
+  .authTab {
+    flex:1; padding:9px 0; border:none; border-radius:8px; background:transparent;
+    color:#d8c9ab; font-size:13.5px; font-weight:700; cursor:pointer; transition:all .15s ease;
+  }
+  .authTab.active { background:linear-gradient(135deg, #f2b768, #d9813d); color:#2b1a0d; }
+  #authForm { display:flex; flex-direction:column; gap:10px; margin-bottom:14px; }
+  #authForm input {
+    background:rgba(255,255,255,0.08); border:1px solid rgba(255,222,170,0.25);
+    border-radius:10px; padding:12px 14px; color:#fff8ec; font-size:14px;
+    outline:none;
+  }
+  #authForm input::placeholder { color:#c9bca3; }
+  #authForm input:focus { border-color:#f2b768; background:rgba(255,255,255,0.13); }
+  #passwordHint { font-size:11.5px; color:#c9bca3; text-align:left; margin-top:-4px; }
+  #authError {
+    font-size:12.5px; color:#ff9d8a; text-align:left; min-height:0; display:none;
+  }
+  #authError.show { display:block; }
+  #authSubmitBtn {
+    background:linear-gradient(135deg, #f2b768, #d9813d);
+    color:#2b1a0d; border:none; padding:13px 0; border-radius:10px;
+    font-size:14.5px; font-weight:800; cursor:pointer; letter-spacing:0.5px;
+    transition:transform .15s ease;
+  }
+  #authSubmitBtn:hover { transform:translateY(-1px); }
+  #authSubmitBtn:disabled { opacity:0.6; cursor:default; transform:none; }
+  .auth-divider {
+    display:flex; align-items:center; gap:10px; margin:16px 0;
+    color:#a89a80; font-size:11.5px;
+  }
+  .auth-divider::before, .auth-divider::after {
+    content:""; flex:1; height:1px; background:rgba(255,255,255,0.15);
+  }
+  #googleLoginBtn {
+    width:100%; background:#fff; color:#2b2621; border:none; border-radius:10px;
+    padding:12px 0; font-size:13.5px; font-weight:700; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:9px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.25); transition:transform .15s ease;
+  }
+  #googleLoginBtn:hover { transform:translateY(-1px); }
+  #googleLoginBtn img { width:17px; height:17px; }
+  #guestEnterBtn {
+    width:100%; margin-top:14px; background:transparent;
+    border:1px solid rgba(255,222,170,0.4); color:#f4ead6;
+    border-radius:10px; padding:12px 0; font-size:13px; font-weight:700; cursor:pointer;
+    transition:all .15s ease;
+  }
+  #guestEnterBtn:hover { background:rgba(255,222,170,0.12); }
+  #authMsg {
+    font-size:12px; color:#a7e3b0; margin-top:10px; text-align:left; display:none;
+  }
+  #authMsg.show { display:block; }
+
+  /* ---------- HUD ---------- */
+  #crosshair {
+    position:fixed; top:50%; left:50%; width:6px; height:6px;
+    margin:-3px 0 0 -3px; border-radius:50%;
+    background:rgba(245,237,221,0.85); box-shadow:0 0 4px rgba(0,0,0,0.6);
+    z-index:20; pointer-events:none; display:none;
+  }
+  #hint {
+    position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
+    color:#f5eddd; font-size:12.5px; background:rgba(20,17,13,0.55);
+    padding:8px 16px; border-radius:20px; letter-spacing:0.5px;
+    z-index:20; display:none; pointer-events:none; backdrop-filter:blur(2px);
+  }
+  #roomLabel {
+    position:fixed; top:18px; left:50%; transform:translateX(-50%);
+    color:#e9dcc0; font-size:13px; letter-spacing:2px; z-index:20;
+    display:none; background:rgba(20,17,13,0.45); padding:6px 18px; border-radius:14px;
+  }
+  #logoutBtn {
+    position:fixed; top:16px; right:16px; z-index:22; display:none;
+    background:rgba(20,17,13,0.55); color:#f0dcb8; border:1px solid rgba(255,222,170,0.3);
+    font-size:12.5px; font-weight:700; letter-spacing:0.5px;
+    padding:8px 16px; border-radius:20px; cursor:pointer;
+    backdrop-filter:blur(2px); transition:all .15s ease;
+  }
+  #logoutBtn:hover { background:rgba(217,163,94,0.85); color:#2b1a0d; border-color:transparent; }
+
+  /* ---------- 모바일 조작 UI ---------- */
+  #joystickZone {
+    position:fixed; left:22px; bottom:22px; width:120px; height:120px; z-index:25; display:none;
+  }
+  #lookZoneHint {
+    position:fixed; right:20px; bottom:30px; color:#f5eddd; font-size:11px;
+    background:rgba(20,17,13,0.5); padding:8px 12px; border-radius:10px; z-index:25; display:none;
+  }
+
+  /* ---------- 작품 확대 모달 ---------- */
+  #modalOverlay {
+    position:fixed; inset:0; background:rgba(8,7,5,0.88); z-index:40;
+    display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  #modalBox {
+    background:#171310; border-radius:10px; max-width:920px; width:100%;
+    max-height:92vh; overflow-y:auto; display:flex; flex-wrap:wrap;
+    box-shadow:0 20px 60px rgba(0,0,0,0.6); border:1px solid #2c261e;
+  }
+  #modalImageWrap {
+    flex:1 1 420px; background:#0d0b09; display:flex; align-items:center; justify-content:center;
+    padding:26px; min-width:300px;
+  }
+  #modalImageWrap img {
+    max-width:100%; max-height:56vh; border:10px solid #e8ddc6; border-radius:2px;
+    box-shadow:0 12px 30px rgba(0,0,0,0.5);
+  }
+  #modalInfo { flex:1 1 300px; padding:26px 28px; color:#eee4d0; min-width:280px; }
+  #modalInfo h2 { font-size:21px; margin-bottom:6px; color:#f7f0e0; }
+  #modalInfo .artist { font-size:13.5px; color:#c6a877; margin-bottom:20px; letter-spacing:0.5px; }
+  #likeRow { display:flex; align-items:center; gap:10px; margin-bottom:20px; }
+  #likeBtn {
+    border:1px solid #c6a877; background:transparent; color:#f0c98a;
+    border-radius:20px; padding:8px 18px; font-size:14px; cursor:pointer;
+    display:flex; align-items:center; gap:6px; transition:all .15s ease;
+  }
+  #likeBtn.liked { background:#d97757; border-color:#d97757; color:#fff; }
+  #likeBtn:hover { transform:scale(1.04); }
+  #likeCount { font-size:13px; color:#c9bca3; }
+  #commentSection { border-top:1px solid #2c261e; padding-top:16px; }
+  #commentSection h3 { font-size:13.5px; color:#c9bca3; margin-bottom:12px; font-weight:500; letter-spacing:0.5px; }
+  #commentList { max-height:150px; overflow-y:auto; margin-bottom:12px; display:flex; flex-direction:column; gap:8px; }
+  .commentItem { font-size:13px; background:#20190f22; background:#211b14; padding:9px 12px; border-radius:6px; }
+  .commentItem .cName { color:#e0c9a0; font-weight:600; margin-right:6px; }
+  .commentItem .cText { color:#dcd2bf; }
+  #commentInputRow { display:flex; gap:8px; }
+  #commentName {
+    width:78px; flex-shrink:0; background:#0d0b09; border:1px solid #3a332a; border-radius:6px;
+    color:#eee4d0; padding:8px 8px; font-size:12.5px;
+  }
+  #commentText {
+    flex:1; background:#0d0b09; border:1px solid #3a332a; border-radius:6px;
+    color:#eee4d0; padding:8px 10px; font-size:12.5px;
+  }
+  #commentSend {
+    background:#c98a4b; border:none; color:#1a1510; padding:8px 16px; border-radius:6px;
+    font-size:12.5px; font-weight:700; cursor:pointer;
+  }
+  #closeModal {
+    position:absolute; top:14px; right:18px; background:none; border:none;
+    color:#c9bca3; font-size:22px; cursor:pointer; line-height:1;
+  }
+  #modalBox { position:relative; }
+
+  /* ---------- 시작 화면 내 관리자 버튼 ---------- */
+  #adminOpenBtn {
+    margin-top:14px; display:none;
+    background:transparent; border:1px solid rgba(255,222,170,0.35); color:#f0dcb8;
+    padding:11px 26px; border-radius:24px; font-size:14.5px; font-weight:700; cursor:pointer;
+    letter-spacing:0.5px; transition:all .15s ease;
+  }
+  #adminOpenBtn:hover { background:rgba(255,222,170,0.12); }
+
+  /* ---------- 교사용 업로드 관리자 화면 ---------- */
+  #adminScreen {
+    position:fixed; inset:0; z-index:55; display:none;
+    background:rgba(10,8,6,0.97); overflow-y:auto;
+    padding:36px 20px 60px; color:#f0e6d2; font-size:16px;
+  }
+  .admin-panel {
+    max-width:920px; margin:0 auto;
+    background:rgba(255,255,255,0.03); border:1px solid rgba(255,222,170,0.16);
+    border-radius:16px; padding:34px 38px 44px;
+  }
+  .admin-header {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:6px; border-bottom:2px solid #c98a4b; padding-bottom:16px;
+  }
+  .admin-header h1 { font-size:26px; font-weight:800; color:#fff8ec; }
+  #adminCloseBtn {
+    background:transparent; border:1px solid rgba(255,222,170,0.3); color:#f0dcb8;
+    border-radius:8px; padding:9px 18px; font-size:15px; cursor:pointer;
+  }
+  #adminCloseBtn:hover { background:rgba(255,222,170,0.12); }
+
+  /* 탭 (새 전시 만들기 / 기존 전시 관리) */
+  .admin-tabs { display:flex; gap:10px; margin-top:22px; }
+  .admin-tab {
+    background:transparent; border:1px solid rgba(255,222,170,0.28); color:#d8c9ab;
+    padding:10px 20px; border-radius:10px 10px 0 0; font-size:15px; font-weight:700; cursor:pointer;
+    border-bottom:none; transition:all .15s ease;
+  }
+  .admin-tab.active { background:rgba(255,222,170,0.12); color:#fff8ec; border-color:#c98a4b; }
+  .admin-tab:not(.active):hover { background:rgba(255,255,255,0.05); }
+
+  .admin-section { margin-top:30px; }
+  .admin-section h2 { font-size:18px; font-weight:800; color:#f0c98a; margin-bottom:12px; }
+  .admin-help { font-size:14.5px; color:#c9bca3; line-height:1.7; margin:8px 0 14px; }
+  .admin-help code { background:rgba(255,255,255,0.08); padding:2px 6px; border-radius:4px; font-size:0.95em; }
+  .admin-row { display:flex; flex-wrap:wrap; gap:12px; }
+  .admin-row input, .admin-row select {
+    flex:1; min-width:180px;
+    background:rgba(255,255,255,0.06); border:1px solid rgba(255,222,170,0.22);
+    border-radius:9px; padding:12px 14px; color:#fff8ec; font-size:15.5px; outline:none;
+  }
+  .admin-row input:focus, .admin-row select:focus { border-color:#f2b768; }
+  /* select의 펼쳐진 드롭다운 목록(option)은 브라우저가 반투명 배경을 무시하고
+     기본 흰 배경으로 그리는 경우가 있어, 팝업에서도 항상 잘 보이도록 불투명 색을 명시 */
+  .admin-row select { background-color:#211b14; }
+  .admin-row select option {
+    background-color:#211b14; color:#fff8ec;
+  }
+  #adminFileInput { color:#e5d8bc; font-size:15px; }
+  #adminFileSummary { font-size:14.5px; color:#c9bca3; margin-top:10px; }
+  .admin-dropzone {
+    border:2px dashed rgba(255,222,170,0.32); border-radius:12px;
+    padding:20px 18px; text-align:center; transition:all .15s ease;
+    background:rgba(255,255,255,0.02);
+  }
+  .admin-dropzone.dragover {
+    border-color:#f2b768; background:rgba(242,183,104,0.1);
+  }
+  .admin-dropzone-hint { font-size:13.5px; color:#a89a80; margin-top:10px; }
+  .admin-room-preview {
+    font-size:15.5px; color:#f0c98a; font-weight:700;
+    background:rgba(217,163,94,0.12); border:1px solid rgba(217,163,94,0.3);
+    border-radius:8px; padding:11px 16px; margin-bottom:16px; display:inline-block;
+  }
+  .admin-table-wrap { max-height:400px; overflow-y:auto; border:1px solid rgba(255,222,170,0.14); border-radius:10px; }
+  /* '기존 전시 관리'의 전시실별 작품 목록은 페이지 전체 스크롤에 맡기고
+     표 자체에는 별도의 세로 스크롤바가 생기지 않도록 함 */
+  .admin-table-wrap-flat { border:1px solid rgba(255,222,170,0.14); border-radius:10px; overflow:hidden; }
+  .admin-preview-table { width:100%; border-collapse:collapse; font-size:15px; }
+  .admin-preview-table th {
+    position:sticky; top:0; background:#211b14; color:#dccdae;
+    text-align:left; padding:11px 12px; font-weight:700; border-bottom:1px solid rgba(255,222,170,0.15);
+    font-size:14px;
+  }
+  .admin-preview-table td { padding:9px 12px; border-bottom:1px solid rgba(255,255,255,0.05); vertical-align:middle; }
+  .admin-idx { color:#a89a80; width:32px; font-size:14px; }
+  .admin-thumb { width:56px; height:44px; object-fit:cover; border-radius:5px; display:block; }
+  .admin-preview-table input[type=text] {
+    width:100%; background:rgba(255,255,255,0.06); border:1px solid rgba(255,222,170,0.18);
+    border-radius:7px; padding:9px 11px; color:#fff8ec; font-size:15px; outline:none;
+  }
+  .admin-preview-table input[type=text]:focus { border-color:#f2b768; }
+  .admin-remove {
+    background:transparent; border:1px solid rgba(255,120,100,0.4); color:#ff9d8a;
+    border-radius:7px; padding:7px 14px; font-size:14px; cursor:pointer;
+  }
+  .admin-remove:hover { background:rgba(255,120,100,0.14); }
+  .admin-order-controls {
+    display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:12px;
+  }
+  .admin-order-label { font-size:14px; color:#c9bca3; font-weight:700; }
+  .admin-order-btn {
+    background:transparent; border:1px solid rgba(255,222,170,0.3); color:#f0dcb8;
+    padding:8px 16px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer;
+    transition:all .15s ease;
+  }
+  .admin-order-btn:hover { background:rgba(255,222,170,0.12); }
+  .admin-order-hint { font-size:12.5px; color:#a89a80; }
+  .admin-order-cell { white-space:nowrap; }
+  .admin-order-move {
+    background:transparent; border:1px solid rgba(255,222,170,0.25); color:#dccdae;
+    border-radius:5px; width:26px; height:24px; font-size:11px; cursor:pointer; margin:0 1px;
+  }
+  .admin-order-move:hover:not(:disabled) { background:rgba(255,222,170,0.14); }
+  .admin-order-move:disabled { opacity:0.25; cursor:default; }
+  .admin-save {
+    background:transparent; border:1px solid rgba(167,227,176,0.45); color:#a7e3b0;
+    border-radius:7px; padding:7px 14px; font-size:14px; cursor:pointer; margin-right:6px;
+  }
+  .admin-save:hover { background:rgba(167,227,176,0.14); }
+  .admin-row-status { font-size:12.5px; margin-left:8px; }
+  .admin-progress-wrap { margin:18px 0 8px; }
+  .admin-progress-bar-outer { width:100%; height:10px; background:rgba(255,255,255,0.08); border-radius:6px; overflow:hidden; }
+  .admin-progress-bar-fill { width:0%; height:100%; background:linear-gradient(135deg,#f2b768,#d9813d); transition:width .2s ease; }
+  .admin-progress-text { font-size:14px; color:#dccdae; margin-top:8px; }
+  #adminResultMsg { font-size:15.5px; margin:16px 0; font-weight:700; line-height:1.6; }
+  #adminResultMsg.admin-success { color:#a7e3b0; }
+  #adminResultMsg.admin-warning { color:#ffd166; }
+  #adminResultMsg.admin-error { color:#ff9d8a; }
+  #adminUploadBtn, #adminReloadBtn, .admin-btn-primary {
+    background:linear-gradient(135deg, #f2b768, #d9813d); color:#2b1a0d; border:none;
+    padding:14px 30px; border-radius:11px; font-size:16px; font-weight:800; cursor:pointer;
+    letter-spacing:0.5px; transition:transform .15s ease;
+  }
+  #adminUploadBtn:disabled { opacity:0.45; cursor:default; }
+  #adminUploadBtn:not(:disabled):hover, #adminReloadBtn:hover, .admin-btn-primary:hover { transform:translateY(-1px); }
+  #adminReloadBtn { display:none; margin-left:12px; background:transparent; border:1px solid #f2b768; color:#f2b768; }
+  .admin-actions-row { display:flex; flex-wrap:wrap; gap:12px; margin-top:14px; }
+  .admin-danger {
+    background:transparent; border:1px solid rgba(255,120,100,0.5); color:#ff9d8a;
+    padding:12px 22px; border-radius:10px; font-size:14.5px; font-weight:700; cursor:pointer;
+  }
+  .admin-danger:hover { background:rgba(255,120,100,0.12); }
+  .admin-room-block { margin-top:22px; }
+  .admin-room-block h3 {
+    font-size:15.5px; font-weight:800; color:#e0c9a0; margin-bottom:8px;
+    background:rgba(255,255,255,0.04); padding:8px 12px; border-radius:8px;
+  }
+  .admin-empty-msg { font-size:14.5px; color:#a89a80; padding:14px 0; }
+</style>
+</head>
+<body>
+
+<!-- 로그인 화면 -->
+<div id="authScreen">
+  <div class="auth-card">
+    <h1 style="font-size:26px; margin-bottom:2px;">우리 반 가상 미술관</h1>
+    <div class="sub" style="margin-bottom:20px;">CLASS VIRTUAL GALLERY</div>
+
+    <div id="authTabs">
+      <button type="button" class="authTab active" data-mode="login">로그인</button>
+      <button type="button" class="authTab" data-mode="signup">회원가입</button>
+    </div>
+
+    <form id="authForm">
+      <input type="email" id="authEmail" placeholder="이메일" autocomplete="email" required />
+      <input type="password" id="authPassword" placeholder="비밀번호" autocomplete="current-password" required />
+      <div id="passwordHint">문자 + 숫자 조합, 10자리 이상</div>
+      <div id="authError"></div>
+      <div id="authMsg"></div>
+      <button type="submit" id="authSubmitBtn">로그인</button>
+    </form>
+
+    <div class="auth-divider">또는</div>
+
+    <button id="googleLoginBtn" type="button">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" />
+      Google로 로그인
+    </button>
+
+    <button id="guestEnterBtn" type="button">학생 · 학부모로 입장하기 (로그인 없이 감상)</button>
+  </div>
+</div>
+
+<!-- 시작 화면 (로그인 또는 게스트 입장 이후 표시) -->
+<div id="startScreen">
+  <h1>우리 반 가상 미술관</h1>
+  <div class="sub">CLASS VIRTUAL GALLERY</div>
+  <button id="enterBtn">전시장 입장하기</button>
+  <button id="adminOpenBtn" type="button">🛠 교사용 업로드 관리자</button>
+  <div id="guide">
+    <div class="device-block">
+      <span class="device-label pc">PC</span>
+      W A S D 로 이동, 방향키(↑↓←→) 로 시선 이동,<br/>작품을 마우스로 클릭하면 감상
+    </div>
+    <div class="device-block">
+      <span class="device-label mobile">모바일</span>
+      화면 왼쪽 밑에 있는 조이스틱으로 이동, 화면 드래그로<br/>시선 이동, 작품을 탭하여 감상
+    </div>
+  </div>
+
+  <div id="qrEntryBox">
+    <div class="qr-canvas-wrap" id="qrCanvasWrap"></div>
+    <div class="qr-caption">📱 휴대폰으로 QR코드를 스캔하면<br/>같은 전시장으로 바로 접속할 수 있어요</div>
+    <button id="qrCopyLinkBtn" type="button">🔗 링크 복사</button>
+  </div>
+</div>
+
+<!-- 교사용 업로드 관리자 화면 -->
+<div id="adminScreen">
+  <div class="admin-panel">
+    <div class="admin-header">
+      <h1>🛠 교사용 업로드 관리자</h1>
+      <button id="adminCloseBtn" type="button">✕ 닫기</button>
+    </div>
+
+    <div class="admin-tabs">
+      <button type="button" class="admin-tab active" data-tab="create">새 전시 만들기</button>
+      <button type="button" class="admin-tab" data-tab="manage">기존 전시 관리</button>
+    </div>
+
+    <!-- 탭 1: 새 전시 만들기 -->
+    <div id="adminCreatePanel">
+      <section class="admin-section">
+        <h2>1. 새 전시 정보</h2>
+        <div class="admin-row">
+          <input id="adminExTitle" placeholder="전시 제목 (예: 2026년 여름 미술 전시)" />
+          <input id="adminExGrade" type="number" min="1" max="6" placeholder="학년 (예: 5)" />
+          <input id="adminExClass" placeholder="반 (예: 3반)" />
+        </div>
+      </section>
+
+      <section class="admin-section">
+        <h2>2. 작품 사진 선택</h2>
+        <p class="admin-help">
+          폴더를 선택하면 안에 있는 이미지 파일을 한 번에 불러옵니다. 파일명이
+          <code>이름_제목.jpg</code> 또는 <code>번호_이름_제목.jpg</code> 형식이면 학생 이름과
+          작품 제목이 자동으로 채워지고, 그렇지 않으면 아래 표에서 직접 입력하시면 됩니다.
+        </p>
+        <div class="admin-dropzone" id="adminDropzone">
+          <input type="file" id="adminFileInput" accept="image/*" multiple webkitdirectory />
+          <div class="admin-dropzone-hint">또는 사진 파일들을 여기로 마우스로 끌어다 놓아도 돼요 (폴더째로 끌어놓는 것은 브라우저에 따라 지원되지 않을 수 있어요 — 그럴 땐 여러 파일을 선택해서 끌어놓아 주세요)</div>
+        </div>
+        <div id="adminFileSummary" class="admin-help"></div>
+      </section>
+
+      <section class="admin-section" id="adminTableSection" style="display:none;">
+        <h2>3. 학생 이름 · 작품 제목 확인 · 전시 순서</h2>
+        <div id="adminRoomPreview" class="admin-room-preview"></div>
+        <div class="admin-order-controls">
+          <span class="admin-order-label">전시 순서</span>
+          <button type="button" id="adminSortNameBtn" class="admin-order-btn">학생 이름순 정렬</button>
+          <button type="button" id="adminSortRandomBtn" class="admin-order-btn">랜덤 섞기</button>
+          <span class="admin-order-hint">표의 ▲▼ 버튼으로 순서를 직접 조정할 수도 있어요</span>
+        </div>
+        <div class="admin-table-wrap">
+          <table id="adminTable" class="admin-preview-table">
+            <thead>
+              <tr><th>#</th><th>미리보기</th><th>학생 이름</th><th>작품 제목</th><th>순서</th><th></th></tr>
+            </thead>
+            <tbody id="adminTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="admin-section">
+        <div id="adminProgressWrap" class="admin-progress-wrap" style="display:none;">
+          <div id="adminProgressBar" class="admin-progress-bar-outer"><div id="adminProgressFill" class="admin-progress-bar-fill"></div></div>
+          <div id="adminProgressText" class="admin-progress-text"></div>
+        </div>
+        <div id="adminResultMsg"></div>
+        <button id="adminUploadBtn" type="button" disabled>업로드 &amp; 전시 생성</button>
+        <button id="adminReloadBtn" type="button">지금 확인하러 가기 →</button>
+      </section>
+    </div>
+
+    <!-- 탭 2: 기존 전시 관리 -->
+    <div id="adminManagePanel" style="display:none;">
+      <section class="admin-section">
+        <h2>전시 선택</h2>
+        <div class="admin-row">
+          <select id="adminExhibitionSelect">
+            <option value="">전시를 선택하세요…</option>
+          </select>
+          <button type="button" id="adminExhibitionRefreshBtn" class="admin-danger" style="border-color:rgba(255,222,170,0.35); color:#f0dcb8;">목록 새로고침</button>
+        </div>
+      </section>
+
+      <section class="admin-section" id="adminManageDetail" style="display:none;">
+        <h2>전시 정보 수정</h2>
+        <div class="admin-row">
+          <input id="adminMgTitle" placeholder="전시 제목" />
+          <input id="adminMgGrade" type="number" min="1" max="6" placeholder="학년" />
+          <input id="adminMgClass" placeholder="반" />
+        </div>
+        <div class="admin-actions-row">
+          <button type="button" id="adminMgSaveInfoBtn" class="admin-btn-primary">전시 정보 저장</button>
+          <button type="button" id="adminMgDeleteExBtn" class="admin-danger">🗑 이 전시 전체 삭제</button>
+        </div>
+        <div id="adminMgInfoMsg" class="admin-row-status"></div>
+
+        <h2 style="margin-top:30px;">작품 목록 (전시실별)</h2>
+        <p class="admin-help">이름·제목을 고친 뒤 해당 줄의 "저장"을 눌러야 반영됩니다. 삭제는 되돌릴 수 없어요.</p>
+        <div id="adminMgRoomsWrap"></div>
+
+        <h2 style="margin-top:30px;">이 전시에 작품 추가</h2>
+        <p class="admin-help">
+          사진 폴더를 선택하면 기존 전시실에 남은 자리(전시실당 최대 8편)부터 채우고,
+          자리가 모자라면 새 전시실을 자동으로 만들어 나머지를 배정합니다. 파일명 자동 매칭 규칙은
+          "새 전시 만들기"와 동일합니다.
+        </p>
+        <div class="admin-dropzone" id="adminMgDropzone">
+          <input type="file" id="adminMgFileInput" accept="image/*" multiple webkitdirectory />
+          <div class="admin-dropzone-hint">또는 사진 파일들을 여기로 마우스로 끌어다 놓아도 돼요 (폴더째로 끌어놓는 것은 브라우저에 따라 지원되지 않을 수 있어요 — 그럴 땐 여러 파일을 선택해서 끌어놓아 주세요)</div>
+        </div>
+        <div id="adminMgFileSummary" class="admin-help"></div>
+
+        <div id="adminMgAddTableSection" style="display:none;">
+          <div id="adminMgAddRoomPreview" class="admin-room-preview"></div>
+          <div class="admin-order-controls">
+            <span class="admin-order-label">전시 순서</span>
+            <button type="button" id="adminMgSortNameBtn" class="admin-order-btn">학생 이름순 정렬</button>
+            <button type="button" id="adminMgSortRandomBtn" class="admin-order-btn">랜덤 섞기</button>
+            <span class="admin-order-hint">표의 ▲▼ 버튼으로 순서를 직접 조정할 수도 있어요</span>
+          </div>
+          <div class="admin-table-wrap">
+            <table class="admin-preview-table">
+              <thead>
+                <tr><th>#</th><th>미리보기</th><th>학생 이름</th><th>작품 제목</th><th>순서</th><th></th></tr>
+              </thead>
+              <tbody id="adminMgAddTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="adminMgAddProgressWrap" class="admin-progress-wrap" style="display:none;">
+          <div id="adminMgAddProgressBar" class="admin-progress-bar-outer"><div id="adminMgAddProgressFill" class="admin-progress-bar-fill"></div></div>
+          <div id="adminMgAddProgressText" class="admin-progress-text"></div>
+        </div>
+        <div id="adminMgAddResultMsg"></div>
+        <button id="adminMgAddUploadBtn" type="button" class="admin-btn-primary" disabled style="margin-top:10px;">이 전시에 추가 업로드</button>
+      </section>
+    </div>
+  </div>
+
+</div>
+
+<div id="crosshair"></div>
+<div id="roomLabel"></div>
+<button id="logoutBtn" title="교사 계정 로그아웃">🔓 로그아웃</button>
+<div id="hint">작품을 클릭하면 크게 볼 수 있어요</div>
+<div id="joystickZone"></div>
+<div id="lookZoneHint">화면을 드래그해서 둘러보세요</div>
+
+<!-- 작품 확대 모달 -->
+<div id="modalOverlay">
+  <div id="modalBox">
+    <button id="closeModal">✕</button>
+    <div id="modalImageWrap"><img id="modalImg" src="" alt="artwork" /></div>
+    <div id="modalInfo">
+      <h2 id="modalTitle"></h2>
+      <div class="artist" id="modalArtist"></div>
+      <div id="likeRow">
+        <button id="likeBtn">❤ 좋아요</button>
+        <span id="likeCount"></span>
+      </div>
+      <div id="commentSection">
+        <h3>댓글</h3>
+        <div id="commentList"></div>
+        <div id="commentInputRow">
+          <input id="commentName" placeholder="이름" maxlength="10" />
+          <input id="commentText" placeholder="따뜻한 감상평을 남겨주세요" maxlength="80" />
+          <button id="commentSend">등록</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+/* =========================================================================
+   Supabase 초기화 & 로그인 화면 로직
+   ========================================================================= */
+// Anon Public Key는 RLS 정책으로 보호되는 것을 전제로 공개되어도 되는 키입니다.
+// (Service Role Key는 절대 이 파일에 넣지 마세요)
+const SUPABASE_URL = "https://xloetjawdupadtfquxka.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhsb2V0amF3ZHVwYWR0ZnF1eGthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NDE1NjMsImV4cCI6MjEwMDMxNzU2M30.pFqhpRiRnpH0uxnspV5lNoti_JSfB04anTb0tlaMm9s";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d).{10,}$/; // 문자+숫자 포함, 10자 이상
+
+const authScreenEl = document.getElementById("authScreen");
+const startScreenEl = document.getElementById("startScreen");
+const authForm = document.getElementById("authForm");
+const authEmailInput = document.getElementById("authEmail");
+const authPasswordInput = document.getElementById("authPassword");
+const authErrorEl = document.getElementById("authError");
+const authMsgEl = document.getElementById("authMsg");
+const authSubmitBtn = document.getElementById("authSubmitBtn");
+const passwordHintEl = document.getElementById("passwordHint");
+let authMode = "login"; // "login" | "signup"
+let isTeacher = false; // 로그인(이메일/구글) 성공 시 true, 게스트 입장 시 false
+
+function setAuthError(msg) {
+  authMsgEl.classList.remove("show");
+  if (!msg) { authErrorEl.classList.remove("show"); authErrorEl.textContent=""; return; }
+  authErrorEl.textContent = msg;
+  authErrorEl.classList.add("show");
+}
+function setAuthMsg(msg) {
+  authErrorEl.classList.remove("show");
+  if (!msg) { authMsgEl.classList.remove("show"); authMsgEl.textContent=""; return; }
+  authMsgEl.textContent = msg;
+  authMsgEl.classList.add("show");
+}
+
+document.querySelectorAll(".authTab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".authTab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    authMode = tab.dataset.mode;
+    authSubmitBtn.textContent = authMode === "signup" ? "회원가입" : "로그인";
+    passwordHintEl.style.display = authMode === "signup" ? "block" : "none";
+    setAuthError(""); setAuthMsg("");
+  });
+});
+passwordHintEl.style.display = "none"; // 기본은 로그인 탭
+
+/* ---------- 시작 화면 QR코드 (학부모가 휴대폰으로 스캔해 같은 주소로 접속) ----------
+   전시 URL은 배포 후 window.location으로 자동 결정되므로, 저장소/도메인이 바뀌어도
+   코드 수정 없이 항상 "지금 보고 있는 이 페이지"의 주소로 QR이 만들어집니다. */
+function renderEntryQR() {
+  const box = document.getElementById("qrEntryBox");
+  const wrap = document.getElementById("qrCanvasWrap");
+  if (!box || !wrap) return;
+  try {
+    if (typeof QRCode === "undefined") throw new Error("QRCode 라이브러리 로드 실패");
+    const shareUrl = location.origin + location.pathname; // ?query, #hash는 제외한 순수 접속 주소
+    new QRCode(wrap, {
+      text: shareUrl,
+      width: 104,
+      height: 104,
+      colorDark: "#2b1a0d",
+      colorLight: "#fff8ec",
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  } catch (err) {
+    console.warn("[가상미술관] QR코드 생성 실패(네트워크/CDN 문제일 수 있음):", err.message || err);
+    box.classList.add("hidden"); // 생성 실패 시 조용히 숨김 (핵심 기능에는 영향 없음)
+  }
+}
+renderEntryQR();
+
+document.getElementById("qrCopyLinkBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("qrCopyLinkBtn");
+  const shareUrl = location.origin + location.pathname;
+  try {
+    await navigator.clipboard.writeText(shareUrl);
+    const original = btn.textContent;
+    btn.textContent = "✅ 복사됨!";
+    setTimeout(() => { btn.textContent = original; }, 1600);
+  } catch (err) {
+    console.warn("[가상미술관] 클립보드 복사 실패:", err.message || err);
+    window.prompt("아래 주소를 복사해서 사용하세요:", shareUrl);
+  }
+});
+
+function showGalleryEntry(asTeacher) {
+  isTeacher = !!asTeacher;
+  authScreenEl.style.display = "none";
+  startScreenEl.style.display = "flex";
+  document.getElementById("adminOpenBtn").style.display = isTeacher ? "inline-block" : "none";
+}
+
+authForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  setAuthError(""); setAuthMsg("");
+  const email = authEmailInput.value.trim();
+  const password = authPasswordInput.value;
+
+  if (!email) { setAuthError("이메일을 입력해주세요."); return; }
+  if (!PASSWORD_RULE.test(password)) {
+    setAuthError("비밀번호는 문자와 숫자를 포함해 10자리 이상이어야 해요.");
+    return;
+  }
+
+  authSubmitBtn.disabled = true;
+  authSubmitBtn.textContent = "처리 중...";
+
+  try {
+    if (authMode === "signup") {
+      const { data, error } = await supabaseClient.auth.signUp({ email, password });
+      if (error) throw error;
+      if (data.session) {
+        showGalleryEntry(true);
+      } else {
+        setAuthMsg("가입 확인 메일을 보냈어요. 메일함을 확인한 뒤 로그인해주세요.");
+        document.querySelector('.authTab[data-mode="login"]').click();
+      }
+    } else {
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      showGalleryEntry(true);
+    }
+  } catch (err) {
+    setAuthError(translateAuthError(err.message));
+  } finally {
+    authSubmitBtn.disabled = false;
+    authSubmitBtn.textContent = authMode === "signup" ? "회원가입" : "로그인";
+  }
+});
+
+function translateAuthError(msg) {
+  if (!msg) return "오류가 발생했어요. 다시 시도해주세요.";
+  if (msg.includes("Invalid login credentials")) return "이메일 또는 비밀번호가 올바르지 않아요.";
+  if (msg.includes("already registered") || msg.includes("already exists")) return "이미 가입된 이메일이에요. 로그인해주세요.";
+  if (msg.includes("Password should be")) return "비밀번호 조건을 다시 확인해주세요 (문자+숫자 10자리 이상).";
+  return msg;
+}
+
+document.getElementById("googleLoginBtn").addEventListener("click", async () => {
+  setAuthError(""); setAuthMsg("");
+  const { error } = await supabaseClient.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: window.location.href }
+  });
+  if (error) setAuthError(translateAuthError(error.message));
+});
+
+document.getElementById("guestEnterBtn").addEventListener("click", () => {
+  // 학생/학부모: 로그인 없이 바로 관람 화면으로 (RLS 정책상 조회·좋아요·댓글은 비로그인도 허용)
+  showGalleryEntry(false);
+});
+
+// 이미 로그인된 세션이 있으면(예: 구글 로그인 리다이렉트 복귀) 바로 통과 — 세션이 있다는 것은 교사 계정
+supabaseClient.auth.onAuthStateChange((_event, session) => {
+  if (session) showGalleryEntry(true);
+});
+supabaseClient.auth.getSession().then(({ data }) => {
+  if (data.session) showGalleryEntry(true);
+});
+</script>
+<script>
+/* =========================================================================
+   더미 작품 데이터 생성
+   ========================================================================= */
+const ARTWORK_META = [
+  { title: "가을 풍경",     artist: "김민준", palette: ["#e8b04b","#c9622e","#8a3b23","#fff3d6"], type:"landscape" },
+  { title: "우리 가족",     artist: "이서연", palette: ["#f6e2c4","#e28b6d","#5b7b9a","#2e2a26"], type:"family" },
+  { title: "무지개 마을",   artist: "박도윤", palette: ["#e56b6f","#f2a65a","#f7e07f","#7fb685","#5b8ac9","#8b6fb0"], type:"rainbow" },
+  { title: "바다 이야기",   artist: "최지우", palette: ["#1d4e6b","#2f7d9e","#7fc7d9","#eef4ea"], type:"ocean" },
+  { title: "봄날의 꽃밭",   artist: "정하은", palette: ["#f4a6c1","#f7d6e0","#8fbf6b","#fdf6e3"], type:"flowers" },
+  { title: "달빛 아래",     artist: "강시우", palette: ["#12213b","#2b3f6b","#e8d99a","#7d8fb3"], type:"night" },
+  { title: "숲속 친구들",   artist: "윤서아", palette: ["#3f6b3a","#6d9c5f","#a9c98a","#7a4a2b"], type:"forest" },
+  { title: "나의 꿈",       artist: "임하준", palette: ["#6b4e9a","#a586c9","#f0c98a","#fdf6e3"], type:"dream" },
+];
+
+function seededRandom(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+}
+
+function paintArtworkCanvas(meta, seed) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512; canvas.height = 384;
+  const ctx = canvas.getContext("2d");
+  const rnd = seededRandom(seed);
+  const pal = meta.palette;
+
+  // 배경
+  const grad = ctx.createLinearGradient(0,0,0,canvas.height);
+  grad.addColorStop(0, pal[pal.length-1]);
+  grad.addColorStop(1, pal[0]);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  function circ(x,y,r,color){ ctx.fillStyle=color; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); }
+  function tri(x,y,w,h,color){ ctx.fillStyle=color; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x-w/2,y+h); ctx.lineTo(x+w/2,y+h); ctx.closePath(); ctx.fill(); }
+  function wave(y,amp,color,h){
+    ctx.fillStyle=color; ctx.beginPath(); ctx.moveTo(0,canvas.height);
+    ctx.lineTo(0,y);
+    for(let x=0;x<=canvas.width;x+=16){ ctx.lineTo(x, y+Math.sin(x*0.03+seed)*amp); }
+    ctx.lineTo(canvas.width,canvas.height); ctx.closePath(); ctx.fill();
+  }
+
+  if (meta.type === "landscape") {
+    circ(400,90,42,pal[3]);
+    tri(150,220,220,150,pal[2]);
+    tri(320,240,260,140,pal[1]);
+    ctx.fillStyle=pal[0]; ctx.fillRect(0,320,canvas.width,64);
+  } else if (meta.type === "family") {
+    ctx.fillStyle="#fdf6e3"; ctx.fillRect(0,260,canvas.width,124);
+    const xs=[130,220,310,400];
+    xs.forEach((x,i)=>{
+      const h = 70 + (i%2)*40;
+      circ(x,260-h,24,"#f0c9a0");
+      ctx.fillStyle=pal[i%pal.length]; ctx.fillRect(x-24,260-h+22,48,h);
+    });
+  } else if (meta.type === "rainbow") {
+    for (let i=0;i<pal.length;i++){
+      ctx.strokeStyle = pal[i]; ctx.lineWidth = 14;
+      ctx.beginPath();
+      ctx.arc(256, 420, 260 - i*16, Math.PI, Math.PI*2);
+      ctx.stroke();
+    }
+    tri(140,300,90,80,"#8a5a3a"); tri(340,310,110,90,"#8a5a3a");
+  } else if (meta.type === "ocean") {
+    wave(230,14,pal[1],154);
+    wave(280,20,pal[2],104);
+    circ(90,80,30,pal[3]);
+  } else if (meta.type === "flowers") {
+    ctx.fillStyle=pal[3]; ctx.fillRect(0,0,canvas.width,canvas.height);
+    for(let i=0;i<9;i++){
+      const x = 40+rnd()*430, y=140+rnd()*220;
+      for(let k=0;k<6;k++){
+        const ang = k/6*Math.PI*2;
+        circ(x+Math.cos(ang)*16, y+Math.sin(ang)*16, 12, pal[i%2]);
+      }
+      circ(x,y,9,"#f7e07f");
+      ctx.strokeStyle=pal[2]; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(x,y+10); ctx.lineTo(x,y+70); ctx.stroke();
+    }
+  } else if (meta.type === "night") {
+    ctx.fillStyle=pal[0]; ctx.fillRect(0,0,canvas.width,canvas.height);
+    circ(390,90,46,pal[2]);
+    for(let i=0;i<40;i++){ circ(rnd()*canvas.width, rnd()*canvas.height*0.6, 1.6, "#ffffff"); }
+    tri(130,260,180,120,pal[1]); tri(300,270,220,110,pal[1]);
+  } else if (meta.type === "forest") {
+    ctx.fillStyle=pal[3]; ctx.fillRect(0,290,canvas.width,94);
+    for(let i=0;i<6;i++){
+      const x = 40+i*80;
+      ctx.fillStyle=pal[3]; ctx.fillRect(x-6,240,12,60);
+      circ(x,210,42,pal[i%2===0?1:2]);
+    }
+  } else if (meta.type === "dream") {
+    ctx.fillStyle=pal[3]; ctx.fillRect(0,0,canvas.width,canvas.height);
+    for(let i=0;i<5;i++){
+      const x=70+i*90, y=120+((i%2)*70);
+      circ(x,y,34,pal[0]); circ(x+30,y+6,26,pal[1]); circ(x-28,y+10,22,pal[1]);
+    }
+    circ(430,80,26,pal[2]);
+  }
+
+  return canvas;
+}
+
+// 데모(더미) 작품 데이터 생성 — Supabase에 아직 작품이 없을 때(교사가 업로드 전이거나 연결 실패 시) 대체용으로 사용
+function buildDemoArtworks() {
+  let nextDemoCommentId = 1;
+  const flat = ARTWORK_META.map((meta, i) => {
+    const canvas = paintArtworkCanvas(meta, i * 17 + 3);
+    return {
+      id: null, // 데모 데이터는 실제 DB row가 없음 (좋아요/댓글은 이 세션 메모리에만 저장됨)
+      title: meta.title,
+      artist: meta.artist,
+      canvas,
+      imageUrl: null,
+      dataUrl: canvas.toDataURL("image/png"),
+      likes: Math.floor(seededRandom(i*91+5)()*12) + 2,
+      liked: false,
+      comments: i % 3 === 0
+        ? [{ id: nextDemoCommentId++, nickname:"선생님", content:"색감이 정말 예뻐요!", is_hidden:false }]
+        : []
+    };
+  });
+  // 데모 데이터도 실제 배정 로직(방 1개당 최대 8편)과 동일한 방식으로 방 단위로 묶어서 반환
+  // (전시실이 1개뿐이어도 Phase 4의 다중 전시실 배치 코드 경로를 그대로 통과하도록)
+  const counts = assignRoomCounts(flat.length);
+  const rooms = [];
+  let cursor = 0;
+  counts.forEach((cnt, i) => {
+    rooms.push({ id: null, room_number: i + 1, name: null, artworks: flat.slice(cursor, cursor + cnt) });
+    cursor += cnt;
+  });
+  return rooms;
+}
+
+/* =========================================================================
+   Supabase 데이터 연동 (Phase 2)
+   - exhibitions → rooms → artworks 순으로 최신 전시의 첫 번째 방을 불러옴
+   - 좋아요는 방문자별 고유 키(visitor_key, localStorage 저장)로 중복 방지
+   - 실제 데이터가 하나도 없으면(교사가 아직 업로드 전) 데모 데이터로 자동 대체
+   ========================================================================= */
+let CURRENT_ROOM_IDS = [];    // 현재 표시 중인 전시의 전시실 UUID 목록 (데모 모드에서는 빈 배열)
+let DEMO_MODE = false;        // true면 좋아요/댓글이 로컬 메모리에만 저장됨 (Supabase 미연동 상태)
+
+function getOrCreateVisitorKey() {
+  try {
+    let key = localStorage.getItem("gallery_visitor_key");
+    if (!key) {
+      key = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `v-${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
+      localStorage.setItem("gallery_visitor_key", key);
+    }
+    return key;
+  } catch (e) {
+    // localStorage 접근 불가(프라이빗 모드 등) 시 세션 한정 키로 대체
+    return `v-${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
+  }
+}
+const VISITOR_KEY = getOrCreateVisitorKey();
+
+// 반환값: [{ id, room_number, name, artworks:[...] }, ...] — 전시실 순서(room_number) 그대로,
+// 각 전시실의 작품은 등록 순서(created_at) 그대로 담긴 "방 단위" 배열 (Phase 4: 다중 전시실 지원)
+async function loadArtworksData() {
+  try {
+    const { data: exhibitions, error: exErr } = await supabaseClient
+      .from("exhibitions").select("id, title, grade, class").order("created_at", { ascending:false }).limit(1);
+    if (exErr) throw exErr;
+    if (!exhibitions || !exhibitions.length) throw new Error("등록된 전시가 없습니다");
+
+    const { data: rooms, error: roomErr } = await supabaseClient
+      .from("rooms").select("id, room_number, name")
+      .eq("exhibition_id", exhibitions[0].id)
+      .order("room_number", { ascending:true });
+    if (roomErr) throw roomErr;
+    if (!rooms || !rooms.length) throw new Error("등록된 전시실이 없습니다");
+
+    const roomIds = rooms.map(r => r.id);
+
+    const { data: rows, error: artErr } = await supabaseClient
+      .from("artworks").select("id, room_id, student_name, title, image_url, created_at")
+      .in("room_id", roomIds)
+      .order("created_at", { ascending:true });
+    if (artErr) throw artErr;
+    if (!rows || !rows.length) throw new Error("등록된 작품이 없습니다");
+
+    const ids = rows.map(r => r.id);
+
+    // 좋아요 집계 + 내 좋아요 여부(visitor_key 기준)
+    const { data: likeRows } = await supabaseClient
+      .from("likes").select("artwork_id, visitor_key").in("artwork_id", ids);
+    const likeCountMap = {}, likedByMeSet = new Set();
+    (likeRows || []).forEach(l => {
+      likeCountMap[l.artwork_id] = (likeCountMap[l.artwork_id] || 0) + 1;
+      if (l.visitor_key === VISITOR_KEY) likedByMeSet.add(l.artwork_id);
+    });
+
+    // 댓글 (RLS: 비로그인은 숨김 아닌 댓글만, 교사는 숨김 포함 전체가 자동으로 내려옴)
+    const { data: commentRows } = await supabaseClient
+      .from("comments").select("id, artwork_id, nickname, content, is_hidden, created_at")
+      .in("artwork_id", ids).order("created_at", { ascending:true });
+    const commentMap = {};
+    (commentRows || []).forEach(c => {
+      (commentMap[c.artwork_id] = commentMap[c.artwork_id] || []).push(c);
+    });
+
+    const artByRoom = {};
+    rows.forEach(r => {
+      (artByRoom[r.room_id] = artByRoom[r.room_id] || []).push({
+        id: r.id,
+        title: r.title,
+        artist: r.student_name,
+        canvas: null,
+        imageUrl: r.image_url,
+        dataUrl: null,
+        likes: likeCountMap[r.id] || 0,
+        liked: likedByMeSet.has(r.id),
+        comments: commentMap[r.id] || []
+      });
+    });
+
+    // 작품이 하나도 없는 전시실은 3D 씬에서 제외 (빈 방을 만들지 않음)
+    const roomList = rooms
+      .map(r => ({ id: r.id, room_number: r.room_number, name: r.name, artworks: artByRoom[r.id] || [] }))
+      .filter(r => r.artworks.length > 0);
+    if (!roomList.length) throw new Error("등록된 작품이 없습니다");
+
+    CURRENT_ROOM_IDS = roomList.map(r => r.id);
+    DEMO_MODE = false;
+    // 로비 입구 안내판에 실제 전시의 학년/반을 표시하기 위해 함께 담아 반환
+    roomList.exhibitionInfo = { title: exhibitions[0].title, grade: exhibitions[0].grade, class: exhibitions[0].class };
+    return roomList;
+  } catch (err) {
+    console.warn("[가상미술관] Supabase 데이터를 불러오지 못해 데모 데이터로 대체합니다:", err.message || err);
+    DEMO_MODE = true;
+    CURRENT_ROOM_IDS = [];
+    const demoRooms = buildDemoArtworks();
+    demoRooms.exhibitionInfo = { title: null, grade: null, class: null }; // 데모 모드: 특정 학년/반이 없으므로 사인은 기본 문구로 표시됨
+    return demoRooms;
+  }
+}
+
+let artworks = []; // 전체 전시실의 작품을 이어붙인 평탄화 배열 (Supabase 또는 데모 데이터 로드가 끝나면 채워짐)
+
+/* =========================================================================
+   THREE.JS 씬 구성
+   ========================================================================= */
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0a0806, 0.028);
+
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 120);
+camera.position.set(0, 1.65, 5);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true, logarithmicDepthBuffer:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+document.body.appendChild(renderer.domElement);
+
+// 은은한 전체 환경광 + 위에서 내려오는 약한 half light
+scene.add(new THREE.AmbientLight(0x3d4470, 0.55));
+const hemi = new THREE.HemisphereLight(0x4a4a5e, 0x14100c, 0.4);
+scene.add(hemi);
+
+// 로비 입구 쪽 은은한 보조등 (초반 시야 확보용)
+const lobbyFill = new THREE.PointLight(0xfff0d8, 0.9, 14, 2);
+lobbyFill.position.set(0, 4.2, 3);
+scene.add(lobbyFill);
+
+/* ---------- 재질 ---------- */
+function makeFloorTexture() {
+  const c = document.createElement("canvas"); c.width=256; c.height=256;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#8a6a45"; ctx.fillRect(0,0,256,256);
+  for (let i=0;i<16;i++){
+    ctx.fillStyle = i%2===0 ? "#7d5f3d" : "#93714b";
+    ctx.fillRect(0, i*16, 256, 15);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(10,10);
+  return tex;
+}
+const floorMat = new THREE.MeshStandardMaterial({ map: makeFloorTexture(), roughness:0.85, metalness:0.05 });
+const wallMat  = new THREE.MeshStandardMaterial({ color:0x2a2621, roughness:0.95 });
+const ceilMat  = new THREE.MeshStandardMaterial({ color:0x100e0c, roughness:1 });
+const frameMat = new THREE.MeshStandardMaterial({ color:0xe8ddc6, roughness:0.5, metalness:0.15 });
+// 복도는 전시실과 바닥 톤을 다르게 줘서(쿨톤 그레이) "지금 이동 중"이라는 느낌을 시각적으로 구분
+const corridorFloorMat = new THREE.MeshStandardMaterial({ color:0x4d4f57, roughness:0.9, metalness:0.05 });
+// 출입구(문/아치) 프레임 — 전시실 경계를 눈에 띄게 표시하는 용도
+const doorFrameMat = new THREE.MeshStandardMaterial({ color:0xcaa15a, roughness:0.4, metalness:0.35 });
+// 전시실마다 순서대로 돌려쓰는 포인트 컬러 (입구 스트라이프에 사용, 방마다 다른 색으로 구분감을 줌)
+const ROOM_ACCENT_COLORS = [0x4a86b5, 0xd9973d, 0x6a9c5b, 0xb0608f, 0xc4562f];
+
+/* ---------- 공간 치수 ----------
+   로비 뒤에서 길이 둘로 갈라져(A동/B동) 각각 반대편 벽 쪽으로 전시실들을 이어 붙이며 나아가다가,
+   가장 안쪽(맨 끝)에서 서로 마주 이어져(연결 통로) 하나의 순환 동선(ㅁ자形)을 이룬다.
+   즉 로비 → A동(전시실들) → 연결 통로 → B동(전시실들) → 다시 로비로 돌아오는 구조.
+   실제 방/복도 목록(SEGMENTS)은 데이터 로드가 끝난 뒤 buildRoomsAndCorridors()가 만든다. */
+const LOBBY = { minX:-6, maxX:6, minZ:-1, maxZ:6, h:5 };
+const CORR_MINX = -1.4, CORR_MAXX = 1.4;   // 복도/전시실 출입구 폭 (기준폭, 각 동의 중심좌표 기준 상대값)
+const CORR_HALF = (CORR_MAXX - CORR_MINX) / 2, CORR_WIDTH = CORR_MAXX - CORR_MINX; // 1.4 / 2.8
+const CORR_LEN = 6;                        // 방과 방 사이 복도 길이
+const ROOM_H = 5;                          // 전시실 높이 (모든 전시실 공통)
+const ROOM_FRONT_MARGIN = 3, ROOM_BACK_MARGIN = 2, ARTWORK_STEP = 4; // 작품 배치 간격(기존과 동일)
+const WING_CENTER_A = -4, WING_CENTER_B = 4;   // A동(나가는 길)·B동(돌아오는 길) 복도 중심 x좌표
+const WING_ROOM_OUT = 10;                       // 전시실이 복도 안쪽 벽에서 바깥쪽으로 뻗어나가는 폭
+
+function buildFloorCeil(minX,maxX,minZ,maxZ,h,floorMaterial) {
+  const w = maxX-minX, d = maxZ-minZ;
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(w,d), floorMaterial || floorMat);
+  floor.rotation.x = -Math.PI/2;
+  floor.position.set((minX+maxX)/2, 0, (minZ+maxZ)/2);
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(w,d), ceilMat);
+  ceil.rotation.x = Math.PI/2;
+  ceil.position.set((minX+maxX)/2, h, (minZ+maxZ)/2);
+  scene.add(ceil);
+}
+buildFloorCeil(LOBBY.minX,LOBBY.maxX,LOBBY.minZ,LOBBY.maxZ,LOBBY.h);
+
+function wallSeg(x1,z1,x2,z2,h) {
+  const len = Math.hypot(x2-x1, z2-z1);
+  const geo = new THREE.BoxGeometry(len, h, 0.25);
+  const wall = new THREE.Mesh(geo, wallMat);
+  wall.position.set((x1+x2)/2, h/2, (z1+z2)/2);
+  wall.rotation.y = -Math.atan2(z2-z1, x2-x1);
+  wall.receiveShadow = true; wall.castShadow = false;
+  scene.add(wall);
+}
+
+// 로비 벽 (입구 쪽 z=maxZ는 개방)
+wallSeg(LOBBY.minX,LOBBY.minZ, LOBBY.minX,LOBBY.maxZ, LOBBY.h); // 좌
+wallSeg(LOBBY.maxX,LOBBY.minZ, LOBBY.maxX,LOBBY.maxZ, LOBBY.h); // 우
+// 로비 뒷벽: A동으로 나가는 문 + B동에서 돌아오는 문, 두 개를 남기고 세 조각으로 세움
+wallSeg(LOBBY.minX,LOBBY.minZ, WING_CENTER_A-CORR_HALF,LOBBY.minZ, LOBBY.h);
+wallSeg(WING_CENTER_A+CORR_HALF,LOBBY.minZ, WING_CENTER_B-CORR_HALF,LOBBY.minZ, LOBBY.h);
+wallSeg(WING_CENTER_B+CORR_HALF,LOBBY.minZ, LOBBY.maxX,LOBBY.minZ, LOBBY.h);
+
+// 전시실 개수에 맞춰 작품이 걸리는 벽 위치(왼쪽/오른쪽, z좌표)를 미리 계산해두는 헬퍼.
+// list.length에 맞춰 좌우 분할 후 등간격으로 배치 (기존 단일 전시실 로직과 동일한 간격 유지)
+function computeRoomDepth(count) {
+  const perSide = Math.max(1, Math.ceil(count / 2));
+  const usable = perSide > 1 ? (perSide - 1) * ARTWORK_STEP : 0;
+  return { depth: ROOM_FRONT_MARGIN + usable + ROOM_BACK_MARGIN, perSide };
+}
+
+// 전시실 벽: 앞벽/뒷벽 모두 그 동의 복도 중심(centerX) 기준 폭만큼 열어둔다.
+// 순환 동선이라 막다른 방이 없으므로 뒷벽도 항상 열려 있다(다음 복도로 이어짐).
+function buildRoomWalls(room, centerX) {
+  wallSeg(room.minX,room.maxZ, centerX-CORR_HALF,room.maxZ, room.h);
+  wallSeg(centerX+CORR_HALF,room.maxZ, room.maxX,room.maxZ, room.h);
+  wallSeg(room.minX,room.minZ, room.minX,room.maxZ, room.h); // 좌
+  wallSeg(room.maxX,room.minZ, room.maxX,room.maxZ, room.h); // 우
+  wallSeg(room.minX,room.minZ, centerX-CORR_HALF,room.minZ, room.h);
+  wallSeg(centerX+CORR_HALF,room.minZ, room.maxX,room.minZ, room.h);
+}
+
+// 복도 벽 (양 끝은 로비/전시실이 이미 자기 쪽 출입구를 뚫어두므로 옆면만 세우면 됨)
+function buildCorridorWalls(corr) {
+  wallSeg(corr.minX,corr.minZ, corr.minX,corr.maxZ, corr.h);
+  wallSeg(corr.maxX,corr.minZ, corr.maxX,corr.maxZ, corr.h);
+}
+
+// 출입구(문/아치) 프레임 — 벽이 뚫려서 생긴 통로마다 기둥 2개 + 상인방(윗틀)을 세워
+// "여기가 방과 방을 잇는 문이다"라는 걸 어두운 공간에서도 눈에 띄게 표시한다.
+const DOOR_H = 4.0;
+function buildDoorFrame(centerX, z, doorWidth) {
+  const postW = 0.18, postD = 0.4, lintelH = 0.22; // 벽 두께(0.25)보다 확실히 두껍게 만들어 벽면과 겹치는 부분에서 깜빡임(z-fighting)이 생기지 않도록 함
+  const postGeo = new THREE.BoxGeometry(postW, DOOR_H, postD);
+  [-(doorWidth/2 + postW/2), (doorWidth/2 + postW/2)].forEach(dx => {
+    const post = new THREE.Mesh(postGeo, doorFrameMat);
+    post.position.set(centerX + dx, DOOR_H/2, z);
+    scene.add(post);
+  });
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(doorWidth + postW*2, lintelH, postD), doorFrameMat);
+  lintel.position.set(centerX, DOOR_H - lintelH/2, z);
+  scene.add(lintel);
+}
+
+// 복도 한가운데 은은한 쿨톤 보조등 — 전시실의 따뜻한 스포트라이트와 대비되어
+// "지금은 이동 중"이라는 느낌을 주고, 복도가 완전히 캄캄해지지 않도록 함
+function addCorridorLight(corr) {
+  const light = new THREE.PointLight(0xdfe7ff, 0.7, 9, 2);
+  light.position.set((corr.minX + corr.maxX) / 2, 3.6, (corr.minZ + corr.maxZ) / 2);
+  scene.add(light);
+}
+
+// 전시실 입구 안쪽 벽에 세로 포인트 컬러 스트라이프를 세워, 방마다 다른 색으로
+// "여기부터 다른 전시실"이라는 걸 걸어가면서도 한눈에 구분할 수 있게 함
+// outward: 그 방이 복도 중심에서 바깥쪽으로 뻗은 방향(-1: -X쪽/A동, +1: +X쪽/B동)
+function addRoomAccent(room, colorHex, outward) {
+  const mat = new THREE.MeshStandardMaterial({ color:colorHex, roughness:0.55, emissive:colorHex, emissiveIntensity:0.15 });
+  const stripeH = room.h - 0.6;
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.32, stripeH, 0.05), mat);
+  const stripeX = outward < 0 ? room.minX + 0.9 : room.maxX - 0.9;
+  stripe.position.set(stripeX, stripeH/2 + 0.15, room.maxZ - WALL_HALF - 0.03);
+  scene.add(stripe);
+}
+
+// roomsData: loadArtworksData()가 반환한 [{id, room_number, name, artworks}, ...] (전시실 1개 이상)
+// 절반은 A동(로비에서 나가는 길)에, 나머지 절반은 B동(로비로 돌아오는 길)에 배정하고,
+// 맨 끝에서 두 동을 연결 통로로 이어붙여 로비로 다시 돌아오는 순환 동선을 만든다.
+let SEGMENTS = []; // 클램프/라벨 표시에 사용
+
+// 전시실 하나 + 그 앞의 복도 하나를 지어 wing을 한 칸 늘리는 헬퍼
+// centerX: 이 동의 복도 중심 x좌표 / outward: 방이 뻗어나가는 방향(-1 또는 +1)
+function buildWingStep(roomData, centerX, outward, cursorZ, roomIndex) {
+  const corr = { minX:centerX-CORR_HALF, maxX:centerX+CORR_HALF, minZ:cursorZ-CORR_LEN, maxZ:cursorZ, h:LOBBY.h };
+  buildFloorCeil(corr.minX,corr.maxX,corr.minZ,corr.maxZ,corr.h, corridorFloorMat);
+  buildCorridorWalls(corr);
+  addCorridorLight(corr);
+  SEGMENTS.push({ type:"corridor", label:"이동 중 …", minX:corr.minX, maxX:corr.maxX, minZ:corr.minZ, maxZ:corr.maxZ });
+
+  const { depth } = computeRoomDepth(roomData.artworks.length);
+  const room = outward < 0
+    ? { minX:centerX-WING_ROOM_OUT, maxX:centerX+CORR_HALF, minZ:corr.minZ-depth, maxZ:corr.minZ, h:ROOM_H }
+    : { minX:centerX-CORR_HALF, maxX:centerX+WING_ROOM_OUT, minZ:corr.minZ-depth, maxZ:corr.minZ, h:ROOM_H };
+  buildFloorCeil(room.minX,room.maxX,room.minZ,room.maxZ,room.h);
+  buildRoomWalls(room, centerX); // 순환 동선이라 막다른 방이 없이 뒷문도 항상 열려 있음
+  buildDoorFrame(centerX, room.maxZ, CORR_WIDTH); // 복도 → 이 전시실 진입부
+  buildDoorFrame(centerX, room.minZ, CORR_WIDTH); // 이 전시실 → 다음 복도로 나가는 뒷문
+  addRoomAccent(room, ROOM_ACCENT_COLORS[roomIndex % ROOM_ACCENT_COLORS.length], outward);
+
+  const roomLabel = roomData.name || `제 ${roomData.room_number} 전시실`;
+  addRoomSign(room, roomLabel, roomData.artworks.length, centerX);
+  SEGMENTS.push({ type:"room", label:roomLabel, minX:room.minX, maxX:room.maxX, minZ:room.minZ, maxZ:room.maxZ, roomIndex });
+
+  return { bounds:room, endZ:room.minZ };
+}
+
+// wingRooms: 이 동에 배정된 방 데이터 배열(비어있을 수도 있음 — 방이 1개뿐이면 한쪽 동은 통로만 남음)
+function buildWing(wingRooms, centerX, outward, roomIndexStart) {
+  let cursorZ = LOBBY.minZ;
+  const built = [];
+  let idx = roomIndexStart;
+
+  if (!wingRooms.length) {
+    // 이 동에 배정된 방이 없으면, 순환 통로 역할만 하는 곧은 복도 한 칸만 만들어둔다
+    const corr = { minX:centerX-CORR_HALF, maxX:centerX+CORR_HALF, minZ:cursorZ-CORR_LEN, maxZ:cursorZ, h:LOBBY.h };
+    buildFloorCeil(corr.minX,corr.maxX,corr.minZ,corr.maxZ,corr.h, corridorFloorMat);
+    buildCorridorWalls(corr);
+    addCorridorLight(corr);
+    SEGMENTS.push({ type:"corridor", label:"이동 중 …", minX:corr.minX, maxX:corr.maxX, minZ:corr.minZ, maxZ:corr.maxZ });
+    return { built, endZ:corr.minZ, nextIndex:idx };
+  }
+
+  wingRooms.forEach((roomData) => {
+    const step = buildWingStep(roomData, centerX, outward, cursorZ, idx);
+    built.push({ ...roomData, bounds:step.bounds, roomIndex:idx });
+    cursorZ = step.endZ;
+    idx++;
+  });
+
+  return { built, endZ:cursorZ, nextIndex:idx };
+}
+
+// 더 얕게 끝난 동을 farZ까지 곧게 이어붙여 두 동의 깊이를 맞추는 헬퍼(연결 통로를 짓기 위해 필요)
+function extendStraightCorridor(centerX, fromZ, toZ) {
+  if (fromZ <= toZ) return fromZ;
+  const corr = { minX:centerX-CORR_HALF, maxX:centerX+CORR_HALF, minZ:toZ, maxZ:fromZ, h:LOBBY.h };
+  buildFloorCeil(corr.minX,corr.maxX,corr.minZ,corr.maxZ,corr.h, corridorFloorMat);
+  buildCorridorWalls(corr);
+  SEGMENTS.push({ type:"corridor", label:"이동 중 …", minX:corr.minX, maxX:corr.maxX, minZ:corr.minZ, maxZ:corr.maxZ });
+  return toZ;
+}
+
+// 가장 안쪽(farZ)에서 A동과 B동을 가로로 이어붙이는 연결 통로 — 이 통로 덕분에 동선이 ㅁ자로 순환된다
+function buildConnector(farZ) {
+  const connector = { minX:WING_CENTER_A-CORR_HALF, maxX:WING_CENTER_B+CORR_HALF, minZ:farZ-CORR_WIDTH, maxZ:farZ, h:LOBBY.h };
+  buildFloorCeil(connector.minX, connector.maxX, connector.minZ, connector.maxZ, connector.h, corridorFloorMat);
+  // 가장 안쪽(막다른) 벽 — 순환 동선 전체의 바깥쪽 경계
+  wallSeg(connector.minX, connector.minZ, connector.maxX, connector.minZ, connector.h);
+  // 좌우 벽 — 각 동의 바깥쪽 벽을 그대로 이어받음
+  wallSeg(connector.minX, connector.minZ, connector.minX, connector.maxZ, connector.h);
+  wallSeg(connector.maxX, connector.minZ, connector.maxX, connector.maxZ, connector.h);
+  // 안쪽(두 동 사이) 벽 — 가운데만 막고 양쪽은 각 동의 통로 폭만큼 열어둠
+  wallSeg(WING_CENTER_A+CORR_HALF, connector.maxZ, WING_CENTER_B-CORR_HALF, connector.maxZ, connector.h);
+  addCorridorLight(connector);
+  SEGMENTS.push({ type:"corridor", axis:"x", label:"이동 중 …", minX:connector.minX, maxX:connector.maxX, minZ:connector.minZ, maxZ:connector.maxZ });
+}
+
+// 로비의 두 출입문 위에 "여기서 시작" / "여기로 나감" 안내판을 달아, 처음 들어온 관람객이
+// 어느 문으로 들어가야 제1전시실부터 순서대로 볼 수 있는지 한눈에 알 수 있게 한다.
+function addLobbyDoorSign(centerX, label, sub) {
+  const tex = makeTextSign(label, sub);
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2.3,0.58), new THREE.MeshStandardMaterial({ map:tex, roughness:0.6 }));
+  mesh.position.set(centerX, 3.15, LOBBY.minZ + 0.13);
+  scene.add(mesh);
+  const light = new THREE.SpotLight(0xfff0d0, 1.4, 7, Math.PI/7, 0.4, 1.2);
+  light.position.set(centerX, 4.3, LOBBY.minZ + 1.6);
+  light.target = mesh;
+  scene.add(light); scene.add(light.target);
+}
+
+function buildRoomsAndCorridors(roomsData) {
+  SEGMENTS = [{ type:"lobby", label:"로비", minX:LOBBY.minX, maxX:LOBBY.maxX, minZ:LOBBY.minZ, maxZ:LOBBY.maxZ }];
+  buildDoorFrame(WING_CENTER_A, LOBBY.minZ, CORR_WIDTH); // 로비 → A동(나가는 길)
+  buildDoorFrame(WING_CENTER_B, LOBBY.minZ, CORR_WIDTH); // B동(돌아오는 길) → 로비
+
+  // 절반은 A동, 나머지 절반은 B동. B동은 순서를 뒤집어 지어서, 연결 통로를 지나 로비 쪽으로
+  // 걸어올 때 원래 전시실 번호 순서(…, N-1, N) 그대로 마주치도록 한다.
+  const half = Math.ceil(roomsData.length / 2);
+  const wingAData = roomsData.slice(0, half);
+  const wingBData = roomsData.slice(half).slice().reverse();
+
+  // 처음 들어온 관람객이 어느 문으로 가야 제1전시실부터 순서대로 보는지 알 수 있도록 안내판을 세움
+  const firstRoomLabel = wingAData[0] ? (wingAData[0].name || `제 ${wingAData[0].room_number} 전시실`) : "전시실";
+  addLobbyDoorSign(WING_CENTER_A, `${firstRoomLabel} ↑`, "관람하실 분들은 이곳으로 입장하세요.");
+  addLobbyDoorSign(WING_CENTER_B, "출구 ↓", "여기는 관람을 마친 후 나가는 출구입니다.");
+
+  const resA = buildWing(wingAData, WING_CENTER_A, -1, 0);
+  const resB = buildWing(wingBData, WING_CENTER_B, +1, resA.nextIndex);
+
+  // 두 동의 깊이가 다르면 얕은 쪽을 곧은 복도로 이어 붙여 맞춘 뒤, 그 끝에서 연결 통로로 잇는다
+  const farZ = Math.min(resA.endZ, resB.endZ);
+  extendStraightCorridor(WING_CENTER_A, resA.endZ, farZ);
+  extendStraightCorridor(WING_CENTER_B, resB.endZ, farZ);
+  buildConnector(farZ);
+
+  return resA.built.concat(resB.built);
+}
+
+// 전시실 입구 안내판(방 번호/이름) — 로비 안내판(makeTextSign)과 같은 방식으로 생성해 통일감 유지
+function addRoomSign(room, label, artCount, centerX) {
+  const tex = makeTextSign(label, `${artCount}점 전시 중`);
+  const signMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.6,0.65), new THREE.MeshStandardMaterial({ map:tex, roughness:0.6 }));
+  signMesh.position.set(centerX, 3.5, room.maxZ - 0.14);
+  scene.add(signMesh);
+  const light = new THREE.SpotLight(0xfff0d0, 1.3, 8, Math.PI/7, 0.4, 1.2);
+  light.position.set(centerX, 4.7, room.maxZ - 1.4);
+  light.target = signMesh;
+  scene.add(light); scene.add(light.target);
+}
+
+/* ---------- 작품 이름표(제목/학생 이름) 전용 텍스처 ----------
+   로비 안내판(makeTextSign)과 별도로, 걸어가면서도 잘 읽히도록
+   더 큰 글자 크기와 높은 대비, 긴 제목/이름에 대비한 자동 축소를 적용 */
+function fitFontSize(ctx, text, maxWidth, baseSize, weight) {
+  let size = baseSize;
+  ctx.font = `${weight} ${size}px 'Noto Sans KR', sans-serif`;
+  while (ctx.measureText(text).width > maxWidth && size > 28) {
+    size -= 4;
+    ctx.font = `${weight} ${size}px 'Noto Sans KR', sans-serif`;
+  }
+  return size;
+}
+function makeArtworkLabelSign(title, artist) {
+  const W = 1024, H = 300;
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const ctx = c.getContext("2d");
+
+  // 배경: 기존 이름표보다 진하고 또렷하게, 포인트 컬러 테두리로 시선을 붙잡음
+  ctx.fillStyle = "#15100b";
+  ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = "#d9a35e"; ctx.lineWidth = 7;
+  ctx.strokeRect(9,9,W-18,H-18);
+
+  ctx.textAlign = "center";
+
+  // 작품 제목 — 큼직하고 밝게, 살짝 그림자를 줘서 원거리에서도 또렷하게
+  ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 6;
+  ctx.fillStyle = "#fff8ec";
+  fitFontSize(ctx, title, W - 90, 108, "bold");
+  ctx.fillText(title, W/2, 158);
+
+  // 이름 — 제목보다는 작지만 이전 대비 크게, 포인트 컬러로 구분 (이름만 표시)
+  ctx.shadowBlur = 3;
+  ctx.fillStyle = "#f0c98a";
+  fitFontSize(ctx, artist, W - 120, 62, "700");
+  ctx.fillText(artist, W/2, 240);
+  ctx.shadowBlur = 0;
+
+  return new THREE.CanvasTexture(c);
+}
+
+/* ---------- 로비 안내판 ---------- */
+function makeTextSign(text, sub) {
+  const c = document.createElement("canvas"); c.width=1024; c.height=256;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle="#171310"; ctx.fillRect(0,0,1024,256);
+  ctx.strokeStyle="#c98a4b"; ctx.lineWidth=4; ctx.strokeRect(10,10,1004,236);
+  ctx.fillStyle="#f2ead9"; ctx.font="bold 62px 'Noto Sans KR', sans-serif"; ctx.textAlign="center";
+  ctx.fillText(text, 512, 130);
+  ctx.fillStyle="#c9bca3"; ctx.font="28px 'Noto Sans KR', sans-serif";
+  ctx.fillText(sub, 512, 185);
+  return new THREE.CanvasTexture(c);
+}
+// 로비 환영 안내판 — 실제 전시의 학년/반을 반영해 만든다 (데이터가 없으면 기본 문구로 대체)
+function buildLobbySign(exhibitionInfo) {
+  const info = exhibitionInfo || {};
+  const sub = (info.grade && info.class)
+    ? `Class Virtual Gallery · ${info.grade}학년 ${info.class}반`
+    : "Class Virtual Gallery";
+  const signTex = makeTextSign("우리 반 가상 미술관", sub);
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(4,1), new THREE.MeshStandardMaterial({map:signTex, roughness:0.6}));
+  sign.position.set(0, 3.1, LOBBY.minZ + 0.13);
+  scene.add(sign);
+  const signLight = new THREE.SpotLight(0xfff0d0, 1.6, 10, Math.PI/7, 0.4, 1.2);
+  signLight.position.set(0, 4.6, LOBBY.minZ + 2);
+  signLight.target = sign;
+  scene.add(signLight); scene.add(signLight.target);
+}
+
+/* ---------- 작품 배치 (전시실, 좌우 벽에 균등 분할) ---------- */
+const raycastTargets = [];
+const textureLoader = new THREE.TextureLoader();
+textureLoader.crossOrigin = "anonymous"; // Supabase Storage 이미지를 텍스처로 불러오기 위함
+
+// 벽면(두께 0.25)의 실제 표면 위치를 기준으로, 액자·그림·이름표를 순서대로 살짝씩 띄워 배치
+// (겹치는 면이 없어야 카메라가 움직여도 z-파이팅으로 인한 깜박임이 생기지 않음)
+const WALL_HALF = 0.125;          // 벽 두께의 절반
+const FRAME_DEPTH = 0.06;
+const FRAME_PROTRUDE = 0.05;      // 액자가 벽 표면에서 튀어나온 정도
+const PIC_GAP = 0.03;             // 액자 앞면 ~ 그림 사이 간격
+const LABEL_GAP = 0.03;           // 그림 앞면 ~ 이름표 사이 간격
+
+// list: 전시실 하나에 걸릴 작품 배열 (Phase 4: 전시실별로 placeArtworksInScene을 각각 호출)
+
+// 원본 이미지 비율을 유지한 채, 가로/세로 모두 최대 1.7 world unit 안에 들어오도록 맞춰서
+// (contain 방식) 그림·액자·이름표·조명을 배치. 가로가 긴 그림은 가로로, 세로가 긴 그림은
+// 세로로 자연스럽게 전시됨.
+const ARTWORK_MAX_SIZE = 1.7;
+const FRAME_MARGIN = 0.2;   // 액자가 그림보다 사방으로 더 큰 정도
+const LABEL_W = 1.3, LABEL_H = 0.38;
+const LABEL_MARGIN_BELOW_FRAME = 0.05; // 액자 하단 ~ 이름표 사이 간격
+
+function mountArtwork(art, index, ctx) {
+  const { x, labelX, frameCenter, z, rotY, side } = ctx;
+
+  function build(naturalW, naturalH, tex) {
+    let w = ARTWORK_MAX_SIZE, h = ARTWORK_MAX_SIZE * (naturalH / naturalW);
+    if (h > ARTWORK_MAX_SIZE) { h = ARTWORK_MAX_SIZE; w = ARTWORK_MAX_SIZE * (naturalW / naturalH); }
+
+    const picMat = new THREE.MeshStandardMaterial({ map: tex, roughness:0.6 });
+    const pic = new THREE.Mesh(new THREE.PlaneGeometry(w, h), picMat);
+    pic.position.set(x, 2.0, z);
+    pic.rotation.y = rotY;
+    pic.userData.artworkIndex = index;
+    pic.castShadow = false;
+    scene.add(pic);
+    raycastTargets.push(pic);
+
+    // 액자 (그림 비율에 맞춰 함께 커지거나 작아짐, 벽면에서 살짝 튀어나오도록 배치)
+    const frameW = w + FRAME_MARGIN, frameH = h + FRAME_MARGIN;
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(frameW, frameH, FRAME_DEPTH), frameMat);
+    frame.position.set(frameCenter, 2.0, z);
+    frame.rotation.y = rotY;
+    scene.add(frame);
+
+    // 이름표: 그림 세로 길이와 무관하게 액자 하단에서 항상 일정 간격 아래에 오도록 위치를 계산
+    const frameBottom = 2.0 - frameH / 2;
+    const labelY = frameBottom - LABEL_MARGIN_BELOW_FRAME - LABEL_H / 2;
+    const labelTex = makeArtworkLabelSign(art.title, art.artist);
+    const label = new THREE.Mesh(
+      new THREE.PlaneGeometry(LABEL_W, LABEL_H),
+      new THREE.MeshBasicMaterial({ map:labelTex })
+    );
+    label.position.set(labelX, labelY, z);
+    label.rotation.y = rotY;
+    scene.add(label);
+
+    // 작품 전용 스포트라이트 (공간은 어둡고 작품만 밝게)
+    const spot = new THREE.SpotLight(0xffdca8, 3.2, 8, Math.PI/8, 0.5, 1.4);
+    spot.position.set(x + (side==="left"?1.1:-1.1), 4.5, z + 0.3);
+    spot.target = pic;
+    spot.castShadow = true;
+    spot.shadow.mapSize.set(768,768);
+    spot.shadow.bias = -0.001;
+    scene.add(spot);
+    scene.add(spot.target);
+    // 전시실이 여러 개로 늘어나면 스포트라이트(특히 그림자)가 한꺼번에 너무 많아져
+    // 오히려 작품이 제대로 안 보이는 문제가 생길 수 있어, 방 단위로 묶어뒀다가
+    // 지금 있는 방(및 바로 옆방) 것만 켜고 나머지는 꺼두는 방식으로 관리한다 (updateRoomLighting 참고)
+    if (ctx.lightsBucket) ctx.lightsBucket.push(spot);
+  }
+
+  if (art.imageUrl) {
+    // 실제 업로드 이미지는 로드가 끝나야 원본 가로/세로 픽셀 크기를 알 수 있으므로,
+    // 텍스처 로드가 완료된 뒤(onLoad) 비율을 계산해서 배치함
+    textureLoader.load(
+      art.imageUrl,
+      (tex) => {
+        tex.encoding = THREE.sRGBEncoding;
+        const img = tex.image;
+        build(img.naturalWidth || img.width || 4, img.naturalHeight || img.height || 3, tex);
+      },
+      undefined,
+      (err) => {
+        console.warn("[가상미술관] 작품 이미지 로드 실패:", art.imageUrl, err);
+        build(4, 3, null); // 로드 실패 시에도 자리는 비지 않도록 기본 4:3 비율로 배치
+      }
+    );
+  } else {
+    // 데모 모드: canvas로 그린 더미 이미지는 크기를 바로 알 수 있음
+    const tex = new THREE.CanvasTexture(art.canvas);
+    tex.encoding = THREE.sRGBEncoding;
+    build(art.canvas.width, art.canvas.height, tex);
+  }
+}
+
+// 전시실 인덱스별 그 방 작품 스포트라이트 목록 (방 단위 밝기/그림자 관리용, updateRoomLighting에서 사용)
+const ROOM_LIGHT_GROUPS = {};
+
+// bounds: 이 작품들이 걸릴 전시실의 {minX,maxX,minZ,maxZ} / indexOffset: 전체 artworks 배열에서의 시작 인덱스
+// roomIndex: 이 전시실이 SEGMENTS/ROOM_LIGHT_GROUPS에서 쓰는 방 번호(0부터 시작)
+function placeArtworksInScene(list, bounds, indexOffset, roomIndex) {
+  const roomZStart = bounds.minZ + ROOM_FRONT_MARGIN, roomZEnd = bounds.maxZ - ROOM_BACK_MARGIN;
+  const perSide = Math.max(1, Math.ceil(list.length / 2));
+  const step = perSide > 1 ? (roomZEnd - roomZStart) / (perSide - 1) : 0;
+  const lightsBucket = ROOM_LIGHT_GROUPS[roomIndex] = ROOM_LIGHT_GROUPS[roomIndex] || [];
+
+  list.forEach((art, i) => {
+    const side = i < perSide ? "left" : "right";
+    const idx = i % perSide;
+    const z = roomZStart + idx*step;
+    const dirSign = side === "left" ? 1 : -1; // 방(실내)을 향하는 방향
+    const wallFace = side === "left" ? bounds.minX + WALL_HALF : bounds.maxX - WALL_HALF;
+    const frameFront = wallFace + dirSign * FRAME_PROTRUDE;
+    const frameCenter = frameFront - dirSign * (FRAME_DEPTH/2);
+    const x = frameFront + dirSign * PIC_GAP;              // 그림 위치
+    const labelX = x + dirSign * LABEL_GAP;                 // 이름표 위치
+    const rotY = side === "left" ? Math.PI/2 : -Math.PI/2;
+
+    mountArtwork(art, indexOffset + i, { x, labelX, frameCenter, z, rotY, side, lightsBucket });
+  });
+}
+
+// 현재 위치한 세그먼트를 기준으로, 그 방(및 SEGMENTS 상 두 칸 이내로 가까운 방)의
+// 작품 스포트라이트만 켜고 그림자는 지금 있는 방 것만 드리우게 한다.
+// → 전시실이 아무리 많아져도 동시에 켜지는 조명·그림자 수가 항상 일정하게 유지되어
+//   Phase 4 이전(전시실 1개)과 똑같이 작품이 밝고 또렷하게 보인다.
+function updateRoomLighting(seg) {
+  const curSegIdx = seg ? SEGMENTS.indexOf(seg) : -1;
+
+  Object.keys(ROOM_LIGHT_GROUPS).forEach((key) => {
+    const roomIdx = Number(key);
+    const roomSeg = SEGMENTS.find(s => s.type === "room" && s.roomIndex === roomIdx);
+    const roomSegIdx = roomSeg ? SEGMENTS.indexOf(roomSeg) : -1;
+    const near = roomSegIdx >= 0 && curSegIdx >= 0 && Math.abs(roomSegIdx - curSegIdx) <= 2;
+    const isCurrent = roomSegIdx === curSegIdx;
+    ROOM_LIGHT_GROUPS[roomIdx].forEach((spot) => {
+      // 단순히 밝기(intensity)만 0으로 낮추면 조명 자체는 여전히 씬에 남아있어 렌더러가
+      // 매 프레임 그 조명까지 포함해서 셰이더 계산을 해야 한다. 전시실이 많아질수록
+      // 이 계산량이 그대로 누적되므로, 멀리 있는 조명은 아예 씬에서 빼뒀다가 가까워지면
+      // 다시 넣는 방식으로 바꿔 실제로 계산해야 할 조명 수 자체를 줄인다.
+      if (near && !spot.parent) scene.add(spot);
+      if (!near && spot.parent) scene.remove(spot);
+      spot.intensity = near ? 3.2 : 0;
+      spot.castShadow = isCurrent;
+    });
+  });
+}
+
+// Supabase에서 방 단위 작품 데이터를 비동기로 불러온 뒤, 전시실 개수만큼 복도·전시실을 이어 붙이고
+// 각 방 벽에 그 방의 작품들을 배치한다 (실패 시 자동으로 데모 데이터 사용, Phase 4: 다중 전시실)
+loadArtworksData().then((roomsData) => {
+  buildLobbySign(roomsData.exhibitionInfo);
+  const builtRooms = buildRoomsAndCorridors(roomsData);
+  artworks = [];
+  builtRooms.forEach((room) => {
+    const offset = artworks.length;
+    artworks = artworks.concat(room.artworks);
+    placeArtworksInScene(room.artworks, room.bounds, offset, room.roomIndex);
+  });
+});
+
+/* =========================================================================
+   1인칭 이동 컨트롤 (PC: Pointer Lock / 모바일: 조이스틱+드래그)
+   ========================================================================= */
+// 주 입력장치가 '터치'인 기기만 모바일 모드로 판단 (터치스크린이 달린 PC는 제외)
+const isTouch = window.matchMedia && window.matchMedia("(pointer: coarse) and (hover: none)").matches;
+
+let yaw = 0, pitch = 0; // 시작 시 -z(전시실 방향)을 보도록
+camera.rotation.order = "YXZ";
+
+const move = { forward:false, back:false, left:false, right:false };
+const velocity = new THREE.Vector3();
+let bobTime = 0;
+let modalOpen = false;
+
+// 현재 z좌표가 속한 세그먼트(로비/복도/전시실)를 SEGMENTS에서 찾아 그 구간의 벽으로 clamp.
+// SEGMENTS는 로비(가장 큰 z)부터 마지막 전시실(가장 작은 z)까지 순서대로 이어져 있으므로,
+// 위에서부터 내려오며 pos.z가 그 세그먼트의 minZ 이상인 첫 번째 세그먼트를 사용한다.
+// 이제 A동/B동이 같은 z 구간에서도 서로 다른 x 범위를 가지므로(양 갈래 순환 동선),
+// z만으로는 구간을 특정할 수 없어 (x,z)가 실제로 그 세그먼트의 사각형 안에 있는지로 판정한다.
+// 문(입구) 경계처럼 어느 세그먼트에도 딱 걸리지 않는 찰나에는 마지막으로 있던 곳을 그대로 유지한다.
+let lastKnownSegment = null;
+// 전시실은 폭이 넓어서, 연결 통로 바로 앞의 얕은 구간과 사각형이 서로 겹칠 수 있다.
+// 이 겹치는 구간에서 "전시실"이 먼저 판정되면 전시실의 좁은 x범위에 갇혀 통로를 따라
+// 옆으로(연결 통로 방향으로) 빠져나가지 못하게 되므로, 폭이 좁은 통로/연결통로를 먼저
+// 확인하고 그다음에 전시실을 확인한다.
+function findSegment(x, z) {
+  const pad = 0.05;
+  const hit = (seg) => x >= seg.minX - pad && x <= seg.maxX + pad && z >= seg.minZ - pad && z <= seg.maxZ + pad;
+  for (const seg of SEGMENTS) { if (seg.type !== "room" && hit(seg)) return seg; }
+  for (const seg of SEGMENTS) { if (seg.type === "room" && hit(seg)) return seg; }
+  return null;
+}
+
+function clampPlayerPosition(pos) {
+  let seg = findSegment(pos.x, pos.z);
+  if (!seg) seg = lastKnownSegment;
+  if (!seg) return pos; // 데이터 로드 전(방/복도가 아직 생성되지 않은 순간)에는 이동만 허용
+  lastKnownSegment = seg;
+
+  const margin = seg.type === "corridor" ? 0.35 : (seg.type === "lobby" ? 0.4 : 0.5);
+  if (seg.axis === "x") {
+    // 가로로 뻗은 연결 통로: 좌우(x)는 통로 양 끝(바깥쪽 벽)까지만 제한한다.
+    // 앞뒤(z)는 맨 안쪽 막다른 벽 방향만 막고, 반대쪽(양옆 전시실로 이어지는 방향)은 열어둬야
+    // 통로에서 다시 전시실로 돌아가거나 다음 전시실로 들어갈 수 있다.
+    pos.x = THREE.MathUtils.clamp(pos.x, seg.minX + margin, seg.maxX - margin);
+    pos.z = Math.max(pos.z, seg.minZ + margin);
+  } else {
+    // 세로로 뻗은 구간(로비/복도/전시실)은 좌우(x)만 제한하고, 진행 방향(z)은
+    // 다음 방/복도로 자연스럽게 이어지도록 손대지 않는다.
+    pos.x = THREE.MathUtils.clamp(pos.x, seg.minX + margin, seg.maxX - margin);
+  }
+
+  if (seg.type === "lobby") {
+    pos.z = Math.min(pos.z, seg.maxZ - 0.4); // 입구 밖으로 나가지 못하게 (막다른 경계)
+  }
+  return pos;
+}
+
+/* ---- 캔버스 참조 ---- */
+const canvasEl = renderer.domElement;
+canvasEl.tabIndex = 0;
+canvasEl.style.outline = "none";
+
+/* ---- 키보드: WASD=이동, 방향키=시선 회전 ---- */
+const MOVE_KEYS = new Set(["KeyW","KeyA","KeyS","KeyD"]);
+const LOOK_KEYS = new Set(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"]);
+const look = { up:false, down:false, left:false, right:false };
+
+// 로그인 폼, 댓글 입력창 등 텍스트를 입력하는 요소에 포커스가 있을 때는
+// WASD/방향키를 이동 단축키로 가로채지 않고 그대로 타이핑되도록 통과시킴
+function isTypingTarget(el) {
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
+}
+
+function handleKeyDown(e) {
+  if (isTypingTarget(e.target)) return;
+  if (MOVE_KEYS.has(e.code)) {
+    e.preventDefault();
+    if (e.code === "KeyW") move.forward = true;
+    if (e.code === "KeyS") move.back = true;
+    if (e.code === "KeyA") move.left = true;
+    if (e.code === "KeyD") move.right = true;
+  } else if (LOOK_KEYS.has(e.code)) {
+    e.preventDefault();
+    if (e.code === "ArrowUp") look.up = true;
+    if (e.code === "ArrowDown") look.down = true;
+    if (e.code === "ArrowLeft") look.left = true;
+    if (e.code === "ArrowRight") look.right = true;
+  }
+}
+function handleKeyUp(e) {
+  if (isTypingTarget(e.target)) return;
+  if (MOVE_KEYS.has(e.code)) {
+    e.preventDefault();
+    if (e.code === "KeyW") move.forward = false;
+    if (e.code === "KeyS") move.back = false;
+    if (e.code === "KeyA") move.left = false;
+    if (e.code === "KeyD") move.right = false;
+  } else if (LOOK_KEYS.has(e.code)) {
+    e.preventDefault();
+    if (e.code === "ArrowUp") look.up = false;
+    if (e.code === "ArrowDown") look.down = false;
+    if (e.code === "ArrowLeft") look.left = false;
+    if (e.code === "ArrowRight") look.right = false;
+  }
+}
+// window/document 이중 등록 시 동일 키 입력이 두 번 처리되므로 document 한 곳에만 등록
+document.addEventListener("keydown", handleKeyDown);
+document.addEventListener("keyup", handleKeyUp);
+
+// 입력창에서 포커스가 벗어날 때(예: 로그인 후 다른 곳 클릭) 혹시 눌려 있던 이동 상태가
+// 남아있지 않도록, 텍스트 입력 요소들이 blur될 때 이동/시선 상태를 안전하게 초기화
+document.addEventListener("focusin", (e) => {
+  if (isTypingTarget(e.target)) {
+    move.forward = move.back = move.left = move.right = false;
+    look.up = look.down = look.left = look.right = false;
+  }
+});
+
+/* ---- 마우스: 작품 위에서 커서 변경 + 클릭 시 감상 ---- */
+const raycaster = new THREE.Raycaster();
+const mouseNDC = new THREE.Vector2(2, 2); // 화면 밖 초기값
+
+function updateMouseNDC(clientX, clientY) {
+  const rect = canvasEl.getBoundingClientRect();
+  mouseNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  mouseNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function pickArtworkAtNDC(ndc) {
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObjects(raycastTargets);
+  if (hits.length) openModal(hits[0].object.userData.artworkIndex);
+}
+
+canvasEl.addEventListener("mousemove", (e) => {
+  canvasEl.focus({ preventScroll: true });
+  updateMouseNDC(e.clientX, e.clientY);
+});
+
+canvasEl.addEventListener("click", (e) => {
+  canvasEl.focus({ preventScroll: true });
+  updateMouseNDC(e.clientX, e.clientY);
+  pickArtworkAtNDC(mouseNDC);
+});
+
+/* ---- 모바일: 조이스틱(이동) + 드래그(시선) + 탭(감상) ---- */
+let joystickVec = {x:0,y:0};
+if (isTouch) {
+  document.getElementById("joystickZone").style.display = "block";
+  document.getElementById("lookZoneHint").style.display = "block";
+
+  const manager = nipplejs.create({
+    zone: document.getElementById("joystickZone"),
+    mode: "static",
+    position: { left: "60px", bottom: "60px" },
+    color: "#e0a262",
+    size: 100
+  });
+  manager.on("move", (evt, data) => {
+    const rad = data.angle.radian;
+    const force = Math.min(data.force, 1.4)/1.4;
+    joystickVec.x = Math.cos(rad) * force;
+    joystickVec.y = Math.sin(rad) * force;
+  });
+  manager.on("end", () => { joystickVec.x = 0; joystickVec.y = 0; });
+
+  let lastTouch = null;
+  let dragMoved = false;
+  renderer.domElement.addEventListener("touchstart", (e) => {
+    const t = e.touches[0];
+    if (t.clientX < 200 && t.clientY > window.innerHeight-200) return; // 조이스틱 영역 제외
+    lastTouch = { x:t.clientX, y:t.clientY };
+    dragMoved = false;
+  });
+  renderer.domElement.addEventListener("touchmove", (e) => {
+    if (!lastTouch) return;
+    const t = e.touches[0];
+    if (t.clientX < 200 && t.clientY > window.innerHeight-200) return;
+    const dx = t.clientX - lastTouch.x, dy = t.clientY - lastTouch.y;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragMoved = true;
+    yaw -= dx * 0.0035;
+    pitch -= dy * 0.0035;
+    pitch = THREE.MathUtils.clamp(pitch, -1.2, 1.2);
+    lastTouch = { x:t.clientX, y:t.clientY };
+  });
+  renderer.domElement.addEventListener("touchend", (e) => {
+    if (!dragMoved && lastTouch) {
+      updateMouseNDC(lastTouch.x, lastTouch.y);
+      pickArtworkAtNDC(mouseNDC);
+    }
+    lastTouch = null;
+  });
+}
+
+/* =========================================================================
+   애니메이션 루프
+   ========================================================================= */
+const clock = new THREE.Clock();
+const ROT_SPEED = 1.8; // 방향키 시선 회전 속도 (rad/sec)
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  if (modalOpen) {
+    renderer.render(scene, camera);
+    return;
+  }
+
+  // 방향키로 시선 회전
+  if (look.left) yaw += ROT_SPEED * dt;
+  if (look.right) yaw -= ROT_SPEED * dt;
+  if (look.up) pitch = Math.min(pitch + ROT_SPEED * dt, 1.2);
+  if (look.down) pitch = Math.max(pitch - ROT_SPEED * dt, -1.2);
+
+  camera.rotation.y = yaw;
+  camera.rotation.x = pitch;
+
+  const speed = 3.2;
+  // 이동 벡터 계산 (yaw 기준) — 키보드와 터치 조이스틱 입력을 항상 함께 반영
+  const dir = new THREE.Vector3();
+  let mForward = 0, mStrafe = 0;
+
+  if (move.forward) mForward += 1;
+  if (move.back) mForward -= 1;
+  if (move.right) mStrafe += 1;
+  if (move.left) mStrafe -= 1;
+
+  mForward += joystickVec.y;
+  mStrafe += joystickVec.x;
+  mForward = THREE.MathUtils.clamp(mForward, -1, 1);
+  mStrafe = THREE.MathUtils.clamp(mStrafe, -1, 1);
+
+  if (mForward !== 0 || mStrafe !== 0) {
+    const sinY = Math.sin(yaw), cosY = Math.cos(yaw);
+    dir.x = (-sinY * mForward) + (cosY * mStrafe);
+    dir.z = (-cosY * mForward) - (sinY * mStrafe);
+    dir.normalize();
+    const newPos = camera.position.clone();
+    newPos.x += dir.x * speed * dt;
+    newPos.z += dir.z * speed * dt;
+    clampPlayerPosition(newPos);
+    camera.position.x = newPos.x;
+    camera.position.z = newPos.z;
+
+    // 헤드보빙
+    bobTime += dt * 8;
+    camera.position.y = 1.65 + Math.sin(bobTime) * 0.035;
+  } else {
+    bobTime = 0;
+    camera.position.y += (1.65 - camera.position.y) * 0.2;
+  }
+
+  // 전시실 라벨 표시 (현재 위치한 세그먼트의 이름을 그대로 표시) + 방 단위 조명 밝기/그림자 갱신
+  const label = document.getElementById("roomLabel");
+  const curSeg = findSegment(camera.position.x, camera.position.z) || lastKnownSegment;
+  updateRoomLighting(curSeg);
+  if (curSeg) {
+    label.style.display = "block"; label.textContent = curSeg.label;
+  } else {
+    label.style.display = "none";
+  }
+
+  // 마우스가 작품 위에 있으면 커서를 포인터로 변경 (PC)
+  if (!isTouch) {
+    raycaster.setFromCamera(mouseNDC, camera);
+    const hoverHits = raycaster.intersectObjects(raycastTargets);
+    canvasEl.style.cursor = hoverHits.length ? "pointer" : "default";
+  }
+
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* =========================================================================
+   시작 화면 / 모달 UI 로직
+   ========================================================================= */
+document.getElementById("enterBtn").addEventListener("click", () => {
+  document.getElementById("startScreen").style.display = "none";
+  canvasEl.focus();
+  document.getElementById("hint").style.display = "block";
+  document.getElementById("roomLabel").style.display = "block";
+  // 게스트(학생·학부모)는 애초에 로그인하지 않았으므로 로그아웃 버튼이 필요 없음 — 교사 계정일 때만 노출
+  if (isTeacher) document.getElementById("logoutBtn").style.display = "block";
+});
+
+document.getElementById("logoutBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("logoutBtn");
+  btn.disabled = true;
+  try {
+    await supabaseClient.auth.signOut();
+  } catch (err) {
+    console.warn("[가상미술관] 로그아웃 처리 중 오류:", err.message || err);
+  }
+  isTeacher = false;
+
+  // 로그아웃 순간까지 눌려 있던 이동/시선 키 입력이 로그인 화면에 남아있지 않도록 초기화
+  move.forward = move.back = move.left = move.right = false;
+  look.up = look.down = look.left = look.right = false;
+
+  // 갤러리 HUD를 모두 숨기고 다시 로그인 화면으로 복귀 (게스트로 재입장하거나 다시 로그인 가능)
+  btn.style.display = "none";
+  document.getElementById("hint").style.display = "none";
+  document.getElementById("roomLabel").style.display = "none";
+  startScreenEl.style.display = "none";
+  authScreenEl.style.display = "flex";
+  authPasswordInput.value = "";
+  setAuthError(""); setAuthMsg("");
+
+  btn.disabled = false;
+});
+
+let currentArtworkIndex = null;
+const modalOverlay = document.getElementById("modalOverlay");
+
+function openModal(index) {
+  currentArtworkIndex = index;
+  const art = artworks[index];
+  document.getElementById("modalImg").src = art.imageUrl || art.dataUrl;
+  document.getElementById("modalTitle").textContent = art.title;
+  document.getElementById("modalArtist").textContent = art.artist + " 作";
+  renderLikes();
+  renderComments();
+  modalOverlay.style.display = "flex";
+  modalOpen = true;
+  // 모달이 열려 있는 동안 캐릭터가 계속 움직이지 않도록 입력 상태 초기화
+  move.forward = move.back = move.left = move.right = false;
+  look.up = look.down = look.left = look.right = false;
+}
+
+function closeModal() {
+  modalOverlay.style.display = "none";
+  modalOpen = false;
+  currentArtworkIndex = null;
+  canvasEl.focus();
+}
+document.getElementById("closeModal").addEventListener("click", closeModal);
+modalOverlay.addEventListener("click", (e) => { if (e.target === modalOverlay) closeModal(); });
+
+function renderLikes() {
+  const art = artworks[currentArtworkIndex];
+  const btn = document.getElementById("likeBtn");
+  btn.classList.toggle("liked", art.liked);
+  document.getElementById("likeCount").textContent = `${art.likes}명이 좋아합니다`;
+}
+document.getElementById("likeBtn").addEventListener("click", async () => {
+  const art = artworks[currentArtworkIndex];
+  const btn = document.getElementById("likeBtn");
+
+  // 데모 모드(Supabase 미연동)에서는 기존처럼 로컬 메모리에만 반영
+  if (DEMO_MODE || !art.id) {
+    art.liked = !art.liked;
+    art.likes += art.liked ? 1 : -1;
+    renderLikes();
+    return;
+  }
+
+  btn.disabled = true;
+  const wasLiked = art.liked;
+  try {
+    if (!wasLiked) {
+      const { error } = await supabaseClient.from("likes")
+        .insert({ artwork_id: art.id, visitor_key: VISITOR_KEY });
+      // unique(artwork_id, visitor_key) 위반(이미 좋아요 누른 상태)은 무시하고 liked 상태만 맞춤
+      if (error && error.code !== "23505") throw error;
+      art.liked = true;
+      art.likes += 1;
+    } else {
+      const { error } = await supabaseClient.from("likes")
+        .delete().eq("artwork_id", art.id).eq("visitor_key", VISITOR_KEY);
+      if (error) throw error;
+      art.liked = false;
+      art.likes = Math.max(0, art.likes - 1);
+    }
+  } catch (err) {
+    console.warn("[가상미술관] 좋아요 처리 실패:", err.message || err);
+  } finally {
+    btn.disabled = false;
+    renderLikes();
+  }
+});
+
+function renderComments() {
+  const art = artworks[currentArtworkIndex];
+  const list = document.getElementById("commentList");
+  list.innerHTML = "";
+  if (art.comments.length === 0) {
+    list.innerHTML = `<div class="commentItem" style="color:#8a7d64;">아직 댓글이 없어요. 첫 댓글을 남겨보세요!</div>`;
+  }
+  art.comments.forEach(c => {
+    const div = document.createElement("div");
+    div.className = "commentItem";
+    if (c.is_hidden) div.style.opacity = "0.5";
+    const hiddenBadge = c.is_hidden ? `<span style="color:#ff9d8a;font-size:11px;margin-left:6px;">(숨김됨)</span>` : "";
+    div.innerHTML = `<span class="cName">${escapeHtml(c.nickname)}</span><span class="cText">${escapeHtml(c.content)}</span>${hiddenBadge}`;
+
+    // 교사 로그인 상태이고, 실제 DB 댓글(id 보유)일 때만 숨김/복원 버튼 노출
+    if (isTeacher && !DEMO_MODE && c.id) {
+      const modBtn = document.createElement("button");
+      modBtn.textContent = c.is_hidden ? "복원" : "숨김";
+      modBtn.style.cssText = "margin-left:8px;font-size:11px;background:transparent;border:1px solid #5a4f3c;color:#c9bca3;border-radius:5px;padding:2px 8px;cursor:pointer;";
+      modBtn.addEventListener("click", () => toggleCommentHidden(c));
+      div.appendChild(modBtn);
+    }
+    list.appendChild(div);
+  });
+  list.scrollTop = list.scrollHeight;
+}
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+}
+
+async function toggleCommentHidden(comment) {
+  const nextHidden = !comment.is_hidden;
+  try {
+    const { error } = await supabaseClient.from("comments")
+      .update({ is_hidden: nextHidden }).eq("id", comment.id);
+    if (error) throw error;
+    comment.is_hidden = nextHidden;
+    renderComments();
+  } catch (err) {
+    console.warn("[가상미술관] 댓글 숨김 처리 실패:", err.message || err);
+    alert("댓글 처리 중 오류가 발생했어요. 다시 시도해주세요.");
+  }
+}
+
+document.getElementById("commentSend").addEventListener("click", submitComment);
+document.getElementById("commentText").addEventListener("keydown", (e) => { if (e.key === "Enter") submitComment(); });
+
+async function submitComment() {
+  const nameInput = document.getElementById("commentName");
+  const textInput = document.getElementById("commentText");
+  const sendBtn = document.getElementById("commentSend");
+  const name = nameInput.value.trim() || "익명";
+  const text = textInput.value.trim();
+  if (!text) return;
+
+  const art = artworks[currentArtworkIndex];
+
+  // 데모 모드(Supabase 미연동)에서는 기존처럼 로컬 메모리에만 반영
+  if (DEMO_MODE || !art.id) {
+    art.comments.push({ id: `local-${Date.now()}`, nickname: name, content: text, is_hidden:false });
+    textInput.value = "";
+    renderComments();
+    return;
+  }
+
+  sendBtn.disabled = true;
+  try {
+    const { data, error } = await supabaseClient.from("comments")
+      .insert({ artwork_id: art.id, nickname: name, content: text, is_hidden:false })
+      .select().single();
+    if (error) throw error;
+    art.comments.push(data);
+    textInput.value = "";
+    renderComments();
+  } catch (err) {
+    console.warn("[가상미술관] 댓글 등록 실패:", err.message || err);
+    alert("댓글 등록에 실패했어요. 잠시 후 다시 시도해주세요.");
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+/* =========================================================================
+   Phase 3 — 교사용 업로드 관리자 페이지
+   - 로컬 폴더 사진 선택 → Supabase Storage 업로드(public 버킷) → artworks insert
+   - 파일명 규칙(이름_제목 / 번호_이름_제목)으로 학생명·제목 자동 매칭, 수동 수정 가능
+   - 방 자동 배정: 방 개수 = ceil(작품수/8), 균등 분배 (예: 22장 → 8/7/7)
+   ========================================================================= */
+const STORAGE_BUCKET = "artwork-images"; // Supabase 대시보드에서 미리 만들어둔 public 버킷 이름
+
+// 어드민 화면 열기/닫기 (교사 로그인 상태에서만 startScreen에 버튼이 노출됨)
+document.getElementById("adminOpenBtn").addEventListener("click", () => {
+  startScreenEl.style.display = "none";
+  document.getElementById("adminScreen").style.display = "block";
+});
+document.getElementById("adminCloseBtn").addEventListener("click", () => {
+  document.getElementById("adminScreen").style.display = "none";
+  startScreenEl.style.display = "flex";
+});
+
+// 탭 전환: 새 전시 만들기 ↔ 기존 전시 관리
+document.querySelectorAll(".admin-tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".admin-tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    const target = tab.dataset.tab;
+    document.getElementById("adminCreatePanel").style.display = target === "create" ? "block" : "none";
+    document.getElementById("adminManagePanel").style.display = target === "manage" ? "block" : "none";
+    if (target === "manage") loadExhibitionsList();
+  });
+});
+
+// 파일명에서 학생 이름 / 작품 제목을 추정
+// "번호_이름_제목.jpg" → 이름+제목 / "이름_제목.jpg" → 이름+제목 / 그 외 → 제목만 추정, 이름은 빈칸
+function parseArtworkFilename(filename) {
+  const base = filename.replace(/\.[^/.]+$/, ""); // 확장자 제거
+  const parts = base.split("_").map(s => s.trim()).filter(Boolean);
+  if (parts.length >= 3) {
+    return { student: parts[1], title: parts.slice(2).join(" ") };
+  } else if (parts.length === 2) {
+    return { student: parts[0], title: parts[1] };
+  }
+  return { student: "", title: parts[0] || base };
+}
+
+// 방 자동 배정 로직: 방 1개당 목표 8편, 방 개수 = ceil(전체 작품 수 / 8), 이후 균등 분배
+// 예: 22장 → ceil(22/8)=3개 방 → [8,7,7] / 30장 → 4개 방 → [8,8,7,7]
+function assignRoomCounts(totalCount) {
+  const roomCount = Math.max(1, Math.ceil(totalCount / 8));
+  const base = Math.floor(totalCount / roomCount);
+  const remainder = totalCount % roomCount;
+  const counts = [];
+  for (let i = 0; i < roomCount; i++) counts.push(base + (i < remainder ? 1 : 0));
+  return counts;
+}
+
+/* ---------- 전시 순서(진열 순서) 조정 공용 헬퍼 ----------
+   업로드 목록 배열의 순서가 곧 방 배정 순서·전시실 내 진열 순서가 되므로,
+   이 배열 자체를 정렬/셔플/스왑해서 "학생 이름순 / 랜덤 / 직접 순서 정하기"를 구현함 */
+function sortFilesByStudentName(filesArr) {
+  filesArr.sort((a, b) =>
+    (a.student || "").localeCompare(b.student || "", "ko", { numeric:true, sensitivity:"base" })
+  );
+}
+function shuffleFilesRandom(filesArr) {
+  for (let i = filesArr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [filesArr[i], filesArr[j]] = [filesArr[j], filesArr[i]];
+  }
+}
+function moveFileItem(filesArr, idx, dir) {
+  const target = dir === "up" ? idx - 1 : idx + 1;
+  if (target < 0 || target >= filesArr.length) return;
+  [filesArr[idx], filesArr[target]] = [filesArr[target], filesArr[idx]];
+}
+
+// FileList(폴더 선택 또는 드래그앤드롭 모두 공용) → 이미지 파일만 걸러 파일명 자연 정렬 후,
+// 파일명 자동 매칭 결과와 미리보기 URL을 붙인 상태 객체 배열로 변환
+function buildFileItemsFromFileList(fileList) {
+  const files = Array.from(fileList).filter(f => f.type.startsWith("image/"));
+  files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric:true, sensitivity:"base" }));
+  return files.map(file => {
+    const { student, title } = parseArtworkFilename(file.name);
+    return { file, student, title, previewUrl: URL.createObjectURL(file) };
+  });
+}
+
+// 드롭존(dragover/drop) 공용 배선. onDropFiles(fileList)가 실제 처리를 담당
+function setupDropzone(zoneEl, onDropFiles) {
+  ["dragenter", "dragover"].forEach(evt => {
+    zoneEl.addEventListener(evt, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      zoneEl.classList.add("dragover");
+    });
+  });
+  ["dragleave", "drop"].forEach(evt => {
+    zoneEl.addEventListener(evt, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      zoneEl.classList.remove("dragover");
+    });
+  });
+  zoneEl.addEventListener("drop", (e) => {
+    const files = e.dataTransfer && e.dataTransfer.files;
+    if (files && files.length) onDropFiles(files);
+  });
+}
+
+let adminFiles = []; // { file, student, title, previewUrl }
+
+document.getElementById("adminFileInput").addEventListener("change", (e) => {
+  adminFiles.forEach(item => URL.revokeObjectURL(item.previewUrl));
+  adminFiles = buildFileItemsFromFileList(e.target.files);
+  renderAdminTable();
+});
+
+// 드래그앤드롭으로 끌어다 놓은 사진들은 기존 목록 뒤에 이어 붙임 (여러 번 나눠서 끌어다 놓아도 되도록)
+setupDropzone(document.getElementById("adminDropzone"), (fileList) => {
+  adminFiles.push(...buildFileItemsFromFileList(fileList));
+  renderAdminTable();
+});
+
+function renderAdminTable() {
+  const section = document.getElementById("adminTableSection");
+  const summary = document.getElementById("adminFileSummary");
+  const tbody = document.getElementById("adminTableBody");
+  const roomPreview = document.getElementById("adminRoomPreview");
+
+  if (adminFiles.length === 0) {
+    section.style.display = "none";
+    summary.textContent = "";
+    updateAdminUploadEnabled();
+    return;
+  }
+
+  summary.textContent = `이미지 파일 ${adminFiles.length}장을 찾았어요. 아래 표에서 이름·제목을 확인하고 필요하면 수정해주세요.`;
+  section.style.display = "block";
+
+  const counts = assignRoomCounts(adminFiles.length);
+  roomPreview.textContent = `총 ${adminFiles.length}장 → ${counts.length}개 전시실 자동 생성 (${counts.join("/")}편)`;
+
+  tbody.innerHTML = "";
+  adminFiles.forEach((item, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="admin-idx">${i+1}</td>
+      <td><img class="admin-thumb" src="${item.previewUrl}" alt="" /></td>
+      <td><input type="text" data-field="student" data-idx="${i}" value="${escapeHtml(item.student)}" placeholder="학생 이름" /></td>
+      <td><input type="text" data-field="title" data-idx="${i}" value="${escapeHtml(item.title)}" placeholder="작품 제목" /></td>
+      <td class="admin-order-cell">
+        <button type="button" class="admin-order-move" data-dir="up" data-idx="${i}" ${i===0 ? "disabled" : ""}>▲</button>
+        <button type="button" class="admin-order-move" data-dir="down" data-idx="${i}" ${i===adminFiles.length-1 ? "disabled" : ""}>▼</button>
+      </td>
+      <td><button type="button" class="admin-remove" data-idx="${i}">삭제</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll("input[data-field]").forEach(inp => {
+    inp.addEventListener("input", (e) => {
+      const idx = Number(e.target.dataset.idx);
+      const field = e.target.dataset.field;
+      adminFiles[idx][field] = e.target.value;
+      updateAdminUploadEnabled();
+    });
+  });
+  tbody.querySelectorAll(".admin-remove").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const idx = Number(e.target.dataset.idx);
+      URL.revokeObjectURL(adminFiles[idx].previewUrl);
+      adminFiles.splice(idx, 1);
+      renderAdminTable();
+    });
+  });
+  tbody.querySelectorAll(".admin-order-move").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const idx = Number(e.target.dataset.idx);
+      moveFileItem(adminFiles, idx, e.target.dataset.dir);
+      renderAdminTable();
+    });
+  });
+
+  updateAdminUploadEnabled();
+}
+document.getElementById("adminSortNameBtn").addEventListener("click", () => {
+  sortFilesByStudentName(adminFiles);
+  renderAdminTable();
+});
+document.getElementById("adminSortRandomBtn").addEventListener("click", () => {
+  shuffleFilesRandom(adminFiles);
+  renderAdminTable();
+});
+
+function updateAdminUploadEnabled() {
+  const btn = document.getElementById("adminUploadBtn");
+  const title = document.getElementById("adminExTitle").value.trim();
+  const allFilled = adminFiles.length > 0 && adminFiles.every(f => f.student.trim() && f.title.trim());
+  btn.disabled = !(title && allFilled);
+}
+document.getElementById("adminExTitle").addEventListener("input", updateAdminUploadEnabled);
+
+document.getElementById("adminUploadBtn").addEventListener("click", uploadAllArtworks);
+document.getElementById("adminReloadBtn").addEventListener("click", () => location.reload());
+
+async function uploadAllArtworks() {
+  const uploadBtn = document.getElementById("adminUploadBtn");
+  const closeBtn = document.getElementById("adminCloseBtn");
+  const progressWrap = document.getElementById("adminProgressWrap");
+  const progressFill = document.getElementById("adminProgressFill");
+  const progressText = document.getElementById("adminProgressText");
+  const resultMsg = document.getElementById("adminResultMsg");
+  const reloadBtn = document.getElementById("adminReloadBtn");
+
+  uploadBtn.disabled = true;
+  closeBtn.disabled = true;
+  reloadBtn.style.display = "none";
+  progressWrap.style.display = "block";
+  progressFill.style.width = "0%";
+  resultMsg.textContent = "";
+  resultMsg.className = "";
+
+  const title = document.getElementById("adminExTitle").value.trim();
+  const gradeInput = document.getElementById("adminExGrade").value;
+  const grade = gradeInput ? Number(gradeInput) : null;
+  const klass = document.getElementById("adminExClass").value.trim() || null;
+
+  try {
+    // 1) 전시 생성
+    progressText.textContent = "전시 정보를 만드는 중...";
+    const { data: exRow, error: exErr } = await supabaseClient
+      .from("exhibitions").insert({ title, grade, class: klass }).select().single();
+    if (exErr) throw new Error("전시 생성 실패: " + exErr.message);
+    const exhibitionId = exRow.id;
+
+    // 2) 방 자동 배정 및 생성 (ceil(작품수/8) 로직)
+    const counts = assignRoomCounts(adminFiles.length);
+    progressText.textContent = `전시실 ${counts.length}개를 만드는 중... (${counts.join("/")}편)`;
+    const roomIds = [];
+    for (let i = 0; i < counts.length; i++) {
+      const { data: roomRow, error: roomErr } = await supabaseClient
+        .from("rooms")
+        .insert({ exhibition_id: exhibitionId, room_number: i + 1, name: `제 ${i + 1} 전시실` })
+        .select().single();
+      if (roomErr) throw new Error(`전시실 ${i+1} 생성 실패: ` + roomErr.message);
+      roomIds.push(roomRow.id);
+    }
+
+    // 작품 순번 → 담당 전시실 id 매핑 (counts 배열 순서대로 앞에서부터 채움)
+    const roomIdForIndex = [];
+    counts.forEach((c, ri) => { for (let k = 0; k < c; k++) roomIdForIndex.push(roomIds[ri]); });
+
+    // 3) 이미지 업로드(Storage) + 작품 정보 저장(artworks) — 한 장씩 순차 처리, 실패해도 계속 진행
+    let successCount = 0, failCount = 0;
+    for (let i = 0; i < adminFiles.length; i++) {
+      const item = adminFiles[i];
+      progressText.textContent = `업로드 중... (${i+1}/${adminFiles.length}) ${item.file.name}`;
+      try {
+        const ext = (item.file.name.match(/\.[^/.]+$/) || [".jpg"])[0].toLowerCase();
+        const path = `${exhibitionId}/${roomIdForIndex[i]}/${Date.now()}_${i}${ext}`;
+
+        const { error: upErr } = await supabaseClient.storage
+          .from(STORAGE_BUCKET)
+          .upload(path, item.file, { upsert:false, contentType: item.file.type || "image/jpeg" });
+        if (upErr) throw upErr;
+
+        const { data: pub } = supabaseClient.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+
+        const { error: artErr } = await supabaseClient.from("artworks").insert({
+          room_id: roomIdForIndex[i],
+          student_name: item.student,
+          title: item.title,
+          image_url: pub.publicUrl
+        });
+        if (artErr) throw artErr;
+
+        successCount++;
+      } catch (err) {
+        console.warn("[가상미술관] 작품 업로드 실패:", item.file.name, err.message || err);
+        failCount++;
+      }
+      progressFill.style.width = `${Math.round(((i+1)/adminFiles.length)*100)}%`;
+    }
+
+    if (failCount === 0) {
+      resultMsg.className = "admin-success";
+      resultMsg.textContent = `✅ 업로드 완료! 총 ${successCount}장이 전시실 ${counts.length}개에 배정되었습니다 (${counts.join("/")}편).`;
+    } else {
+      resultMsg.className = "admin-warning";
+      resultMsg.textContent = `⚠️ 업로드 완료 (성공 ${successCount} / 실패 ${failCount}). 실패한 작품은 표에서 이름·제목을 확인한 뒤 다시 시도해주세요.`;
+    }
+    progressText.textContent = "완료";
+    reloadBtn.style.display = "inline-block";
+  } catch (err) {
+    resultMsg.className = "admin-error";
+    resultMsg.textContent = "❌ 전시 생성에 실패했어요: " + (err.message || err) +
+      " (Storage 버킷/정책 설정이 되어 있는지 확인해주세요)";
+    progressText.textContent = "";
+  } finally {
+    uploadBtn.disabled = false;
+    closeBtn.disabled = false;
+  }
+}
+
+/* =========================================================================
+   Phase 3-보완 — 기존 전시 관리 (수정/삭제)
+   - 이미 만들어진 전시를 목록에서 골라 정보 수정, 작품 이름/제목 수정, 개별 삭제,
+     전시 통째 삭제까지 지원
+   ========================================================================= */
+let currentMgExhibitionId = null;
+let mgArtworksById = {}; // { artworkId: {id, room_id, room_number, student_name, title, image_url} }
+let mgRooms = []; // [{id, room_number, name}] — 현재 선택된 전시의 전시실 목록
+let mgArtRowsForRender = []; // renderMgRooms()에 마지막으로 넘긴 작품 배열 (순서 변경 후 재렌더링에 사용)
+
+// 업로드된 이미지의 공개 URL에서 Storage 내부 경로만 추출 (삭제 시 사용)
+function extractStoragePath(url) {
+  if (!url) return null;
+  const marker = `/${STORAGE_BUCKET}/`;
+  const idx = url.indexOf(marker);
+  if (idx === -1) return null;
+  try { return decodeURIComponent(url.slice(idx + marker.length)); }
+  catch (e) { return url.slice(idx + marker.length); }
+}
+
+async function loadExhibitionsList() {
+  const select = document.getElementById("adminExhibitionSelect");
+  const prevValue = select.value;
+  select.innerHTML = `<option value="">전시를 선택하세요…</option>`;
+  document.getElementById("adminManageDetail").style.display = "none";
+  currentMgExhibitionId = null;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("exhibitions").select("id, title, grade, class, created_at")
+      .order("created_at", { ascending:false });
+    if (error) throw error;
+
+    (data || []).forEach(ex => {
+      const opt = document.createElement("option");
+      opt.value = ex.id;
+      const meta = [ex.grade ? `${ex.grade}학년` : null, ex.class || null].filter(Boolean).join(" ");
+      opt.textContent = meta ? `${ex.title} (${meta})` : ex.title;
+      select.appendChild(opt);
+    });
+
+    if (prevValue && [...select.options].some(o => o.value === prevValue)) {
+      select.value = prevValue;
+    }
+  } catch (err) {
+    console.warn("[가상미술관] 전시 목록 로드 실패:", err.message || err);
+    alert("전시 목록을 불러오지 못했어요: " + (err.message || err));
+  }
+}
+document.getElementById("adminExhibitionRefreshBtn").addEventListener("click", loadExhibitionsList);
+
+document.getElementById("adminExhibitionSelect").addEventListener("change", (e) => {
+  const id = e.target.value;
+  if (!id) {
+    document.getElementById("adminManageDetail").style.display = "none";
+    currentMgExhibitionId = null;
+    return;
+  }
+  loadExhibitionDetail(id);
+});
+
+async function loadExhibitionDetail(exhibitionId, keepAddStatus) {
+  const detailSection = document.getElementById("adminManageDetail");
+  const roomsWrap = document.getElementById("adminMgRoomsWrap");
+  roomsWrap.innerHTML = `<div class="admin-empty-msg">불러오는 중...</div>`;
+  detailSection.style.display = "block";
+  document.getElementById("adminMgInfoMsg").textContent = "";
+  resetMgAddForm(keepAddStatus); // 전시를 바꾸면 "작품 추가" 폼도 함께 초기화 (업로드 직후에는 결과 메시지를 유지)
+
+  try {
+    const { data: exRow, error: exErr } = await supabaseClient
+      .from("exhibitions").select("id, title, grade, class").eq("id", exhibitionId).single();
+    if (exErr) throw exErr;
+
+    currentMgExhibitionId = exhibitionId;
+    document.getElementById("adminMgTitle").value = exRow.title || "";
+    document.getElementById("adminMgGrade").value = exRow.grade ?? "";
+    document.getElementById("adminMgClass").value = exRow.class || "";
+
+    const { data: rooms, error: roomErr } = await supabaseClient
+      .from("rooms").select("id, room_number, name").eq("exhibition_id", exhibitionId)
+      .order("room_number", { ascending:true });
+    if (roomErr) throw roomErr;
+
+    mgRooms = rooms || [];
+
+    if (!rooms || !rooms.length) {
+      roomsWrap.innerHTML = `<div class="admin-empty-msg">이 전시에는 아직 전시실이 없어요.</div>`;
+      mgArtworksById = {};
+      mgArtRowsForRender = [];
+      return;
+    }
+
+    const roomIds = rooms.map(r => r.id);
+    const { data: artRows, error: artErr } = await supabaseClient
+      .from("artworks").select("id, room_id, student_name, title, image_url")
+      .in("room_id", roomIds).order("created_at", { ascending:true });
+    if (artErr) throw artErr;
+
+    mgArtworksById = {};
+    (artRows || []).forEach(a => { mgArtworksById[a.id] = a; });
+
+    mgArtRowsForRender = artRows || [];
+    renderMgRooms(rooms, mgArtRowsForRender);
+  } catch (err) {
+    console.warn("[가상미술관] 전시 상세 로드 실패:", err.message || err);
+    roomsWrap.innerHTML = `<div class="admin-empty-msg">불러오기에 실패했어요: ${escapeHtml(err.message || String(err))}</div>`;
+  }
+}
+
+function renderMgRooms(rooms, artRows) {
+  const roomsWrap = document.getElementById("adminMgRoomsWrap");
+  roomsWrap.innerHTML = "";
+
+  rooms.forEach(room => {
+    const items = artRows.filter(a => a.room_id === room.id);
+    const block = document.createElement("div");
+    block.className = "admin-room-block";
+    block.innerHTML = `<h3>${escapeHtml(room.name || `제 ${room.room_number} 전시실`)} · ${items.length}편</h3>`;
+
+    if (items.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "admin-empty-msg";
+      empty.textContent = "이 전시실에는 작품이 없어요.";
+      block.appendChild(empty);
+      roomsWrap.appendChild(block);
+      return;
+    }
+
+    // 전시 순서(진열 순서) 컨트롤: 학생 이름순 / 랜덤 / 표의 ▲▼ 버튼으로 직접 조정
+    const orderControls = document.createElement("div");
+    orderControls.className = "admin-order-controls";
+    orderControls.innerHTML = `
+      <span class="admin-order-label">진열 순서</span>
+      <button type="button" class="admin-order-btn" data-order-action="name">학생 이름순 정렬</button>
+      <button type="button" class="admin-order-btn" data-order-action="random">랜덤 섞기</button>
+      <span class="admin-order-hint">표의 ▲▼ 버튼으로도 순서를 조정할 수 있어요</span>
+      <span class="admin-row-status admin-order-status"></span>
+    `;
+    block.appendChild(orderControls);
+    const orderStatusEl = orderControls.querySelector(".admin-order-status");
+
+    const tableWrap = document.createElement("div");
+    tableWrap.className = "admin-table-wrap-flat"; // 전시실별로 별도 스크롤바가 생기지 않도록 함
+    const table = document.createElement("table");
+    table.className = "admin-preview-table";
+    table.innerHTML = `
+      <thead><tr><th>미리보기</th><th>학생 이름</th><th>작품 제목</th><th>순서</th><th></th></tr></thead>
+      <tbody></tbody>
+    `;
+    const tbody = table.querySelector("tbody");
+
+    items.forEach((art, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><img class="admin-thumb" src="${art.image_url}" alt="" /></td>
+        <td><input type="text" value="${escapeHtml(art.student_name)}" data-mg-field="student" /></td>
+        <td><input type="text" value="${escapeHtml(art.title)}" data-mg-field="title" /></td>
+        <td class="admin-order-cell">
+          <button type="button" class="admin-order-move" data-dir="up" ${i===0 ? "disabled" : ""}>▲</button>
+          <button type="button" class="admin-order-move" data-dir="down" ${i===items.length-1 ? "disabled" : ""}>▼</button>
+        </td>
+        <td>
+          <button type="button" class="admin-save">저장</button>
+          <button type="button" class="admin-remove">삭제</button>
+          <span class="admin-row-status"></span>
+        </td>
+      `;
+      const studentInput = tr.querySelector('[data-mg-field="student"]');
+      const titleInput = tr.querySelector('[data-mg-field="title"]');
+      const statusEl = tr.querySelector(".admin-row-status");
+
+      tr.querySelector(".admin-save").addEventListener("click", () =>
+        saveMgArtwork(art, studentInput.value, titleInput.value, statusEl));
+      tr.querySelector(".admin-remove").addEventListener("click", () =>
+        deleteMgArtwork(art, tr, block, room));
+
+      const [upBtn, downBtn] = tr.querySelectorAll(".admin-order-move");
+      upBtn.addEventListener("click", () => reorderRoomItems(room, items, i, "up", orderStatusEl));
+      downBtn.addEventListener("click", () => reorderRoomItems(room, items, i, "down", orderStatusEl));
+
+      tbody.appendChild(tr);
+    });
+
+    tableWrap.appendChild(table);
+    block.appendChild(tableWrap);
+    roomsWrap.appendChild(block);
+
+    orderControls.querySelector('[data-order-action="name"]').addEventListener("click", () => {
+      const sorted = [...items].sort((a, b) =>
+        (a.student_name || "").localeCompare(b.student_name || "", "ko", { numeric:true, sensitivity:"base" })
+      );
+      applyRoomOrder(room, sorted, orderStatusEl);
+    });
+    orderControls.querySelector('[data-order-action="random"]').addEventListener("click", () => {
+      const shuffled = [...items];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      applyRoomOrder(room, shuffled, orderStatusEl);
+    });
+  });
+}
+
+// 표의 ▲▼ 버튼 클릭 시 해당 전시실 내에서 한 칸 이동시킨 새 순서를 만들어 저장
+function reorderRoomItems(room, items, idx, dir, statusEl) {
+  const target = dir === "up" ? idx - 1 : idx + 1;
+  if (target < 0 || target >= items.length) return;
+  const reordered = [...items];
+  [reordered[idx], reordered[target]] = [reordered[target], reordered[idx]];
+  applyRoomOrder(room, reordered, statusEl);
+}
+
+// 전시실 하나의 작품 진열 순서를 실제로 저장(created_at 재기록)하고 화면을 다시 그림
+async function applyRoomOrder(room, orderedItems, statusEl) {
+  if (statusEl) { statusEl.textContent = "순서 저장 중..."; statusEl.style.color = "#c9bca3"; }
+  try {
+    // artworks 테이블에는 별도의 "진열 순서" 컬럼이 없어서, 정렬 기준으로 쓰이는 created_at을
+    // 원하는 순서대로 촘촘히 다시 채워 넣는 방식으로 순서를 반영함 (같은 방 안에서만 영향을 줌)
+    const baseTime = Date.now();
+    for (let i = 0; i < orderedItems.length; i++) {
+      const newTs = new Date(baseTime + i * 1000).toISOString();
+      const { error } = await supabaseClient.from("artworks")
+        .update({ created_at: newTs }).eq("id", orderedItems[i].id);
+      if (error) throw error;
+    }
+    // 전역 상태(mgArtRowsForRender)에서도 이 방의 항목들을 새 순서로 교체한 뒤 다시 렌더링
+    mgArtRowsForRender = mgArtRowsForRender.filter(a => a.room_id !== room.id).concat(orderedItems);
+    renderMgRooms(mgRooms, mgArtRowsForRender);
+  } catch (err) {
+    console.warn("[가상미술관] 진열 순서 저장 실패:", err.message || err);
+    if (statusEl) { statusEl.textContent = "순서 저장 실패"; statusEl.style.color = "#ff9d8a"; }
+  }
+}
+
+async function saveMgArtwork(art, studentValue, titleValue, statusEl) {
+  const student = studentValue.trim();
+  const title = titleValue.trim();
+  if (!student || !title) {
+    statusEl.textContent = "이름·제목을 모두 입력해주세요";
+    statusEl.style.color = "#ff9d8a";
+    return;
+  }
+  statusEl.textContent = "저장 중...";
+  statusEl.style.color = "#c9bca3";
+  try {
+    const { error } = await supabaseClient
+      .from("artworks").update({ student_name: student, title }).eq("id", art.id);
+    if (error) throw error;
+    art.student_name = student;
+    art.title = title;
+    statusEl.textContent = "✅ 저장됨";
+    statusEl.style.color = "#a7e3b0";
+    setTimeout(() => { statusEl.textContent = ""; }, 1800);
+  } catch (err) {
+    console.warn("[가상미술관] 작품 정보 저장 실패:", err.message || err);
+    statusEl.textContent = "저장 실패";
+    statusEl.style.color = "#ff9d8a";
+  }
+}
+
+async function deleteMgArtwork(art, rowEl, blockEl, room) {
+  if (!confirm(`"${art.title}" 작품을 삭제할까요?\n좋아요·댓글도 함께 삭제되며 되돌릴 수 없습니다.`)) return;
+  try {
+    const { error } = await supabaseClient.from("artworks").delete().eq("id", art.id);
+    if (error) throw error;
+
+    const path = extractStoragePath(art.image_url);
+    if (path) {
+      supabaseClient.storage.from(STORAGE_BUCKET).remove([path]).catch(() => {});
+    }
+
+    delete mgArtworksById[art.id];
+    mgArtRowsForRender = mgArtRowsForRender.filter(a => a.id !== art.id);
+    renderMgRooms(mgRooms, mgArtRowsForRender); // 전체를 다시 그려서 순서·번호가 항상 정확하게 유지되도록 함
+  } catch (err) {
+    console.warn("[가상미술관] 작품 삭제 실패:", err.message || err);
+    alert("삭제에 실패했어요: " + (err.message || err));
+  }
+}
+
+document.getElementById("adminMgSaveInfoBtn").addEventListener("click", async () => {
+  if (!currentMgExhibitionId) return;
+  const msgEl = document.getElementById("adminMgInfoMsg");
+  const title = document.getElementById("adminMgTitle").value.trim();
+  const gradeInput = document.getElementById("adminMgGrade").value;
+  const grade = gradeInput ? Number(gradeInput) : null;
+  const klass = document.getElementById("adminMgClass").value.trim() || null;
+
+  if (!title) {
+    msgEl.textContent = "전시 제목은 비워둘 수 없어요.";
+    msgEl.style.color = "#ff9d8a";
+    return;
+  }
+
+  msgEl.textContent = "저장 중...";
+  msgEl.style.color = "#c9bca3";
+  try {
+    const { error } = await supabaseClient
+      .from("exhibitions").update({ title, grade, class: klass }).eq("id", currentMgExhibitionId);
+    if (error) throw error;
+    msgEl.textContent = "✅ 전시 정보가 저장되었습니다.";
+    msgEl.style.color = "#a7e3b0";
+    loadExhibitionsList(); // 드롭다운에 표시되는 제목도 함께 갱신
+  } catch (err) {
+    console.warn("[가상미술관] 전시 정보 저장 실패:", err.message || err);
+    msgEl.textContent = "저장 실패: " + (err.message || err);
+    msgEl.style.color = "#ff9d8a";
+  }
+});
+
+document.getElementById("adminMgDeleteExBtn").addEventListener("click", async () => {
+  if (!currentMgExhibitionId) return;
+  const title = document.getElementById("adminMgTitle").value || "이 전시";
+  if (!confirm(`"${title}" 전시를 전체 삭제할까요?\n포함된 모든 전시실·작품·좋아요·댓글이 함께 삭제되며 되돌릴 수 없습니다.`)) return;
+
+  try {
+    // Storage에 올라간 이미지 파일들도 함께 정리 (테이블 삭제는 cascade로 자동 처리됨)
+    const paths = Object.values(mgArtworksById).map(a => extractStoragePath(a.image_url)).filter(Boolean);
+    if (paths.length) {
+      supabaseClient.storage.from(STORAGE_BUCKET).remove(paths).catch(() => {});
+    }
+
+    const { error } = await supabaseClient.from("exhibitions").delete().eq("id", currentMgExhibitionId);
+    if (error) throw error;
+
+    alert("전시가 삭제되었습니다.");
+    currentMgExhibitionId = null;
+    mgArtworksById = {};
+    mgRooms = [];
+    document.getElementById("adminManageDetail").style.display = "none";
+    loadExhibitionsList();
+  } catch (err) {
+    console.warn("[가상미술관] 전시 삭제 실패:", err.message || err);
+    alert("삭제에 실패했어요: " + (err.message || err));
+  }
+});
+
+/* =========================================================================
+   Phase 3-보완 2 — 기존 전시에 새 작품 추가
+   - 기존 전시실의 남은 자리(전시실당 최대 8편)부터 채우고,
+     자리가 모자라면 새 전시실을 만들어 나머지를 배정
+   ========================================================================= */
+let mgAddFiles = []; // { file, student, title, previewUrl }
+
+function resetMgAddForm(keepStatus) {
+  mgAddFiles.forEach(item => URL.revokeObjectURL(item.previewUrl));
+  mgAddFiles = [];
+  const fileInput = document.getElementById("adminMgFileInput");
+  if (fileInput) fileInput.value = "";
+  const summary = document.getElementById("adminMgFileSummary");
+  if (summary) summary.textContent = "";
+  const tableSection = document.getElementById("adminMgAddTableSection");
+  if (tableSection) tableSection.style.display = "none";
+  if (!keepStatus) {
+    const resultMsg = document.getElementById("adminMgAddResultMsg");
+    if (resultMsg) { resultMsg.textContent = ""; resultMsg.className = ""; }
+    const progressWrap = document.getElementById("adminMgAddProgressWrap");
+    if (progressWrap) progressWrap.style.display = "none";
+  }
+  const uploadBtn = document.getElementById("adminMgAddUploadBtn");
+  if (uploadBtn) uploadBtn.disabled = true;
+}
+
+document.getElementById("adminMgFileInput").addEventListener("change", (e) => {
+  mgAddFiles.forEach(item => URL.revokeObjectURL(item.previewUrl));
+  mgAddFiles = buildFileItemsFromFileList(e.target.files);
+  renderMgAddTable();
+});
+
+// 드래그앤드롭으로 끌어다 놓은 사진들은 기존 목록 뒤에 이어 붙임
+setupDropzone(document.getElementById("adminMgDropzone"), (fileList) => {
+  mgAddFiles.push(...buildFileItemsFromFileList(fileList));
+  renderMgAddTable();
+});
+
+// 현재 전시실들의 빈 자리(전시실당 최대 8편)부터 채우고, 모자라면 새 전시실을 계산해서 배정 계획을 만듦
+function planAddDistribution(fileCount) {
+  const plan = []; // { roomId, roomNumber, isNew, count }
+  let remaining = fileCount;
+
+  mgRooms.forEach(room => {
+    if (remaining <= 0) return;
+    const currentCount = Object.values(mgArtworksById).filter(a => a.room_id === room.id).length;
+    const slot = Math.max(0, 8 - currentCount);
+    if (slot > 0) {
+      const take = Math.min(slot, remaining);
+      plan.push({ roomId: room.id, roomNumber: room.room_number, name: room.name, isNew:false, count: take });
+      remaining -= take;
+    }
+  });
+
+  if (remaining > 0) {
+    const counts = assignRoomCounts(remaining);
+    let nextRoomNumber = mgRooms.length
+      ? Math.max(...mgRooms.map(r => r.room_number)) + 1
+      : 1;
+    counts.forEach(c => {
+      plan.push({ roomId:null, roomNumber: nextRoomNumber, name:`제 ${nextRoomNumber} 전시실`, isNew:true, count:c });
+      nextRoomNumber++;
+    });
+  }
+
+  return plan;
+}
+
+function describeAddPlan(plan) {
+  return plan.map(p => p.isNew
+    ? `새 전시실(${p.name}) ${p.count}편 생성`
+    : `${p.name || `제 ${p.roomNumber} 전시실`}에 ${p.count}편 추가`
+  ).join(" · ");
+}
+
+function renderMgAddTable() {
+  const section = document.getElementById("adminMgAddTableSection");
+  const summary = document.getElementById("adminMgFileSummary");
+  const tbody = document.getElementById("adminMgAddTableBody");
+  const roomPreview = document.getElementById("adminMgAddRoomPreview");
+
+  if (mgAddFiles.length === 0) {
+    section.style.display = "none";
+    summary.textContent = "";
+    updateMgAddUploadEnabled();
+    return;
+  }
+
+  summary.textContent = `이미지 파일 ${mgAddFiles.length}장을 찾았어요. 아래 표에서 이름·제목을 확인하고 필요하면 수정해주세요.`;
+  section.style.display = "block";
+
+  const plan = planAddDistribution(mgAddFiles.length);
+  roomPreview.textContent = `총 ${mgAddFiles.length}장 → ${describeAddPlan(plan)}`;
+
+  tbody.innerHTML = "";
+  mgAddFiles.forEach((item, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="admin-idx">${i+1}</td>
+      <td><img class="admin-thumb" src="${item.previewUrl}" alt="" /></td>
+      <td><input type="text" data-mg-add-field="student" data-idx="${i}" value="${escapeHtml(item.student)}" placeholder="학생 이름" /></td>
+      <td><input type="text" data-mg-add-field="title" data-idx="${i}" value="${escapeHtml(item.title)}" placeholder="작품 제목" /></td>
+      <td class="admin-order-cell">
+        <button type="button" class="admin-order-move" data-dir="up" data-idx="${i}" ${i===0 ? "disabled" : ""}>▲</button>
+        <button type="button" class="admin-order-move" data-dir="down" data-idx="${i}" ${i===mgAddFiles.length-1 ? "disabled" : ""}>▼</button>
+      </td>
+      <td><button type="button" class="admin-remove" data-idx="${i}">삭제</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll("input[data-mg-add-field]").forEach(inp => {
+    inp.addEventListener("input", (e) => {
+      const idx = Number(e.target.dataset.idx);
+      const field = e.target.dataset.mgAddField;
+      mgAddFiles[idx][field] = e.target.value;
+      updateMgAddUploadEnabled();
+    });
+  });
+  tbody.querySelectorAll(".admin-remove").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const idx = Number(e.target.dataset.idx);
+      URL.revokeObjectURL(mgAddFiles[idx].previewUrl);
+      mgAddFiles.splice(idx, 1);
+      renderMgAddTable();
+    });
+  });
+  tbody.querySelectorAll(".admin-order-move").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const idx = Number(e.target.dataset.idx);
+      moveFileItem(mgAddFiles, idx, e.target.dataset.dir);
+      renderMgAddTable();
+    });
+  });
+
+  updateMgAddUploadEnabled();
+}
+document.getElementById("adminMgSortNameBtn").addEventListener("click", () => {
+  sortFilesByStudentName(mgAddFiles);
+  renderMgAddTable();
+});
+document.getElementById("adminMgSortRandomBtn").addEventListener("click", () => {
+  shuffleFilesRandom(mgAddFiles);
+  renderMgAddTable();
+});
+
+function updateMgAddUploadEnabled() {
+  const btn = document.getElementById("adminMgAddUploadBtn");
+  const allFilled = mgAddFiles.length > 0 && mgAddFiles.every(f => f.student.trim() && f.title.trim());
+  btn.disabled = !(currentMgExhibitionId && allFilled);
+}
+
+document.getElementById("adminMgAddUploadBtn").addEventListener("click", uploadAddArtworks);
+
+async function uploadAddArtworks() {
+  if (!currentMgExhibitionId) return;
+
+  const uploadBtn = document.getElementById("adminMgAddUploadBtn");
+  const progressWrap = document.getElementById("adminMgAddProgressWrap");
+  const progressFill = document.getElementById("adminMgAddProgressFill");
+  const progressText = document.getElementById("adminMgAddProgressText");
+  const resultMsg = document.getElementById("adminMgAddResultMsg");
+
+  uploadBtn.disabled = true;
+  progressWrap.style.display = "block";
+  progressFill.style.width = "0%";
+  resultMsg.textContent = "";
+  resultMsg.className = "";
+
+  try {
+    const plan = planAddDistribution(mgAddFiles.length);
+
+    // 새로 필요한 전시실부터 생성해서 room id 확보
+    progressText.textContent = "필요한 전시실을 확인하는 중...";
+    for (const p of plan) {
+      if (!p.isNew) continue;
+      const { data: roomRow, error: roomErr } = await supabaseClient
+        .from("rooms")
+        .insert({ exhibition_id: currentMgExhibitionId, room_number: p.roomNumber, name: p.name })
+        .select().single();
+      if (roomErr) throw new Error(`전시실(${p.name}) 생성 실패: ` + roomErr.message);
+      p.roomId = roomRow.id;
+    }
+
+    // 배정 계획(plan)대로 각 파일이 들어갈 room id 배열을 순서대로 구성
+    const roomIdForIndex = [];
+    plan.forEach(p => { for (let k = 0; k < p.count; k++) roomIdForIndex.push(p.roomId); });
+
+    let successCount = 0, failCount = 0;
+    for (let i = 0; i < mgAddFiles.length; i++) {
+      const item = mgAddFiles[i];
+      progressText.textContent = `업로드 중... (${i+1}/${mgAddFiles.length}) ${item.file.name}`;
+      try {
+        const ext = (item.file.name.match(/\.[^/.]+$/) || [".jpg"])[0].toLowerCase();
+        const path = `${currentMgExhibitionId}/${roomIdForIndex[i]}/${Date.now()}_${i}${ext}`;
+
+        const { error: upErr } = await supabaseClient.storage
+          .from(STORAGE_BUCKET)
+          .upload(path, item.file, { upsert:false, contentType: item.file.type || "image/jpeg" });
+        if (upErr) throw upErr;
+
+        const { data: pub } = supabaseClient.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+
+        const { error: artErr } = await supabaseClient.from("artworks").insert({
+          room_id: roomIdForIndex[i],
+          student_name: item.student,
+          title: item.title,
+          image_url: pub.publicUrl
+        });
+        if (artErr) throw artErr;
+
+        successCount++;
+      } catch (err) {
+        console.warn("[가상미술관] 작품 추가 업로드 실패:", item.file.name, err.message || err);
+        failCount++;
+      }
+      progressFill.style.width = `${Math.round(((i+1)/mgAddFiles.length)*100)}%`;
+    }
+
+    if (failCount === 0) {
+      resultMsg.className = "admin-success";
+      resultMsg.textContent = `✅ 추가 완료! 총 ${successCount}장을 등록했습니다 (${describeAddPlan(plan)}).`;
+    } else {
+      resultMsg.className = "admin-warning";
+      resultMsg.textContent = `⚠️ 추가 완료 (성공 ${successCount} / 실패 ${failCount}). 실패한 작품은 표에서 이름·제목을 확인한 뒤 다시 시도해주세요.`;
+    }
+    progressText.textContent = "완료";
+
+    // 방금 추가한 내용이 위쪽 "작품 목록" 표에도 바로 반영되도록 상세 정보를 다시 불러옴
+    // (keepAddStatus=true로 호출해서 방금 표시한 결과 메시지가 곧바로 지워지지 않게 함)
+    await loadExhibitionDetail(currentMgExhibitionId, true);
+    loadExhibitionsList();
+  } catch (err) {
+    resultMsg.className = "admin-error";
+    resultMsg.textContent = "❌ 작품 추가에 실패했어요: " + (err.message || err);
+    progressText.textContent = "";
+  } finally {
+    uploadBtn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
