@@ -198,26 +198,6 @@
     #lookZoneHint { display:block !important; }
   }
 
-  /* ---------- 모바일 첫 입장 안내 오버레이 ---------- */
-  #mobileTutorial {
-    position:fixed; inset:0; z-index:60; display:none;
-    align-items:center; justify-content:center;
-    background:rgba(8,6,4,0.55); backdrop-filter:blur(2px);
-  }
-  .mobile-tutorial-card {
-    background:rgba(24,17,11,0.94); border:1px solid rgba(255,222,170,0.25);
-    border-radius:18px; padding:26px 24px 20px; max-width:320px; width:calc(100% - 48px);
-    box-shadow:0 18px 40px rgba(0,0,0,0.5); color:#fff8ec;
-  }
-  .mt-row { font-size:14.5px; line-height:1.6; margin-bottom:14px; display:flex; gap:10px; align-items:flex-start; }
-  .mt-row .mt-ico { font-size:19px; line-height:1.3; }
-  .mt-row b { color:#f2b768; }
-  #mobileTutorialCloseBtn {
-    width:100%; margin-top:6px; background:linear-gradient(135deg, #f2b768, #d9813d);
-    color:#2b1a0d; border:none; padding:12px 0; border-radius:10px;
-    font-size:14px; font-weight:800; cursor:pointer;
-  }
-
   /* ---------- 작품 확대 모달 ---------- */
   #modalOverlay {
     position:fixed; inset:0; background:rgba(8,7,5,0.88); z-index:40;
@@ -665,15 +645,6 @@
 <div id="hint">작품을 클릭하면 크게 볼 수 있어요</div>
 <div id="joystickZone"><div id="joystickThumb"></div></div>
 <div id="lookZoneHint">👆 화면을 드래그하면 시선이 움직여요</div>
-
-<div id="mobileTutorial">
-  <div class="mobile-tutorial-card">
-    <div class="mt-row"><span class="mt-ico">🕹️</span> 왼쪽 아래 <b>동그라미를 눌러 미는 방향</b>으로 이동해요</div>
-    <div class="mt-row"><span class="mt-ico">👆</span> 화면을 <b>드래그</b>하면 시선이 움직여요</div>
-    <div class="mt-row"><span class="mt-ico">👉</span> 작품을 <b>톡 누르면</b> 자세히 볼 수 있어요</div>
-    <button id="mobileTutorialCloseBtn" type="button">확인했어요</button>
-  </div>
-</div>
 
 <!-- 작품 확대 모달 -->
 <div id="modalOverlay">
@@ -1884,106 +1855,123 @@ canvasEl.addEventListener("click", (e) => {
    기존에는 외부 라이브러리(nipplejs)에 의존했는데, 그 라이브러리가 네트워크 문제 등으로
    로드되지 않으면 이 블록에서 에러가 나면서 이 아래(특히 애니메이션 루프를 시작하는
    animate() 호출)까지 스크립트 전체가 멈춰버리는 문제가 있었다. 이동/조작을 직접 구현한
-   가벼운 코드로 바꾸고, 혹시 모를 오류가 나머지 앱을 멈추지 않도록 try/catch로 감쌌다. */
+   가벼운 코드로 바꾸고, 혹시 모를 오류가 나머지 앱을 멈추지 않도록 try/catch로 감쌌다.
+
+   추가로, "이 기기가 터치 기기인가?"를 미리 판별하는 pointer/hover 미디어쿼리는 카카오톡·
+   인스타그램 등 일부 인앱 브라우저에서 실제와 다르게(마우스가 있는 것처럼) 보고되는 경우가
+   있어, 그 판별에만 기대면 진짜 터치 기기인데도 조작 UI가 끝내 나타나지 않을 수 있다.
+   그래서 터치 이벤트 리스너 자체는 기기 판별과 무관하게 항상 등록해두고(마우스만 쓰는
+   PC에서는 어차피 터치 이벤트가 발생하지 않으므로 아무 영향이 없다), 화면을 실제로 한 번이라도
+   터치하는 순간 그걸 근거로 조작 UI를 확실히 드러내는 방식을 이중으로 둔다. */
 let joystickVec = {x:0,y:0};
 let joyTouchId = null;
 let lookTouchId = null;
+let touchControlsRevealed = false;
 
-if (isTouch) {
-  try {
-    const joyZone = document.getElementById("joystickZone");
-    const joyThumb = document.getElementById("joystickThumb");
-    const lookHint = document.getElementById("lookZoneHint");
-    joyZone.style.display = "flex";
-    lookHint.style.display = "block";
-    renderer.domElement.style.touchAction = "none"; // 브라우저 기본 스크롤/줌 제스처가 시선 드래그를 방해하지 않도록 함
+function revealTouchControls() {
+  if (touchControlsRevealed) return;
+  touchControlsRevealed = true;
+  const joyZone = document.getElementById("joystickZone");
+  const lookHint = document.getElementById("lookZoneHint");
+  if (joyZone) joyZone.style.display = "flex";
+  if (lookHint) lookHint.style.display = "block";
+}
+if (isTouch) revealTouchControls(); // 판별이 맞으면 처음부터 바로 표시
+// 판별이 틀렸더라도, 실제로 화면을 터치하는 첫 순간에 확실하게 표시(최종 안전장치)
+document.addEventListener("touchstart", revealTouchControls, { passive:true, once:true });
 
-    const JOY_RADIUS = 46; // 엄지가 움직일 수 있는 최대 반경(px)
+try {
+  const joyZone = document.getElementById("joystickZone");
+  const joyThumb = document.getElementById("joystickThumb");
+  renderer.domElement.style.touchAction = "none"; // 브라우저 기본 스크롤/줌 제스처가 시선 드래그를 방해하지 않도록 함
 
-    function joyCenter() {
-      const r = joyZone.getBoundingClientRect();
-      return { x: r.left + r.width/2, y: r.top + r.height/2 };
-    }
-    function updateJoy(t) {
-      const c = joyCenter();
-      let dx = t.clientX - c.x, dy = t.clientY - c.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist > JOY_RADIUS) { dx = dx/dist*JOY_RADIUS; dy = dy/dist*JOY_RADIUS; }
-      joyThumb.style.transform = `translate(${dx}px, ${dy}px)`;
-      joystickVec.x = dx / JOY_RADIUS;
-      joystickVec.y = -dy / JOY_RADIUS; // 위로 밀면 전진(+forward)이 되도록 부호를 반전
-    }
-    function resetJoy() {
-      joyTouchId = null; joystickVec.x = 0; joystickVec.y = 0;
-      joyThumb.style.transform = "translate(0px, 0px)";
-    }
+  const JOY_RADIUS = 46; // 엄지가 움직일 수 있는 최대 반경(px)
 
-    joyZone.addEventListener("touchstart", (e) => {
-      if (joyTouchId !== null) return;
-      const t = e.changedTouches[0];
-      joyTouchId = t.identifier;
-      updateJoy(t);
-      e.preventDefault();
-    }, { passive:false });
-    window.addEventListener("touchmove", (e) => {
-      if (joyTouchId === null) return;
-      for (const t of e.changedTouches) {
-        if (t.identifier === joyTouchId) { updateJoy(t); e.preventDefault(); break; }
-      }
-    }, { passive:false });
-    function endJoy(e) {
-      if (joyTouchId === null) return;
-      for (const t of e.changedTouches) { if (t.identifier === joyTouchId) { resetJoy(); break; } }
-    }
-    window.addEventListener("touchend", endJoy);
-    window.addEventListener("touchcancel", endJoy);
-  } catch (err) {
-    console.warn("[가상미술관] 모바일 조이스틱 초기화 실패(다른 기능에는 영향 없음):", err.message || err);
+  function joyCenter() {
+    const r = joyZone.getBoundingClientRect();
+    return { x: r.left + r.width/2, y: r.top + r.height/2 };
+  }
+  function updateJoy(t) {
+    const c = joyCenter();
+    let dx = t.clientX - c.x, dy = t.clientY - c.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > JOY_RADIUS) { dx = dx/dist*JOY_RADIUS; dy = dy/dist*JOY_RADIUS; }
+    joyThumb.style.transform = `translate(${dx}px, ${dy}px)`;
+    joystickVec.x = dx / JOY_RADIUS;
+    joystickVec.y = -dy / JOY_RADIUS; // 위로 밀면 전진(+forward)이 되도록 부호를 반전
+  }
+  function resetJoy() {
+    joyTouchId = null; joystickVec.x = 0; joystickVec.y = 0;
+    joyThumb.style.transform = "translate(0px, 0px)";
   }
 
-  try {
-    function inJoyZone(x, y) {
-      const r = document.getElementById("joystickZone").getBoundingClientRect();
-      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  joyZone.addEventListener("touchstart", (e) => {
+    revealTouchControls();
+    if (joyTouchId !== null) return;
+    const t = e.changedTouches[0];
+    joyTouchId = t.identifier;
+    updateJoy(t);
+    e.preventDefault();
+  }, { passive:false });
+  window.addEventListener("touchmove", (e) => {
+    if (joyTouchId === null) return;
+    for (const t of e.changedTouches) {
+      if (t.identifier === joyTouchId) { updateJoy(t); e.preventDefault(); break; }
     }
-    let lookStart = null;
-    let dragMoved = false;
+  }, { passive:false });
+  function endJoy(e) {
+    if (joyTouchId === null) return;
+    for (const t of e.changedTouches) { if (t.identifier === joyTouchId) { resetJoy(); break; } }
+  }
+  window.addEventListener("touchend", endJoy);
+  window.addEventListener("touchcancel", endJoy);
+} catch (err) {
+  console.warn("[가상미술관] 모바일 조이스틱 초기화 실패(다른 기능에는 영향 없음):", err.message || err);
+}
 
-    renderer.domElement.addEventListener("touchstart", (e) => {
-      if (lookTouchId !== null) return;
-      const t = e.changedTouches[0];
-      if (inJoyZone(t.clientX, t.clientY)) return; // 조이스틱 영역은 시선 드래그에서 제외
-      lookTouchId = t.identifier;
+try {
+  function inJoyZone(x, y) {
+    const r = document.getElementById("joystickZone").getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  }
+  let lookStart = null;
+  let dragMoved = false;
+
+  renderer.domElement.addEventListener("touchstart", (e) => {
+    revealTouchControls();
+    if (lookTouchId !== null) return;
+    const t = e.changedTouches[0];
+    if (inJoyZone(t.clientX, t.clientY)) return; // 조이스틱 영역은 시선 드래그에서 제외
+    lookTouchId = t.identifier;
+    lookStart = { x:t.clientX, y:t.clientY };
+    dragMoved = false;
+  }, { passive:true });
+  renderer.domElement.addEventListener("touchmove", (e) => {
+    if (lookTouchId === null) return;
+    for (const t of e.changedTouches) {
+      if (t.identifier !== lookTouchId) continue;
+      const dx = t.clientX - lookStart.x, dy = t.clientY - lookStart.y;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragMoved = true;
+      yaw -= dx * 0.0035;
+      pitch -= dy * 0.0035;
+      pitch = THREE.MathUtils.clamp(pitch, -1.2, 1.2);
       lookStart = { x:t.clientX, y:t.clientY };
-      dragMoved = false;
-    }, { passive:true });
-    renderer.domElement.addEventListener("touchmove", (e) => {
-      if (lookTouchId === null) return;
-      for (const t of e.changedTouches) {
-        if (t.identifier !== lookTouchId) continue;
-        const dx = t.clientX - lookStart.x, dy = t.clientY - lookStart.y;
-        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragMoved = true;
-        yaw -= dx * 0.0035;
-        pitch -= dy * 0.0035;
-        pitch = THREE.MathUtils.clamp(pitch, -1.2, 1.2);
-        lookStart = { x:t.clientX, y:t.clientY };
-        break;
-      }
-    }, { passive:true });
-    function endLook(e) {
-      if (lookTouchId === null) return;
-      for (const t of e.changedTouches) {
-        if (t.identifier !== lookTouchId) continue;
-        if (!dragMoved) { updateMouseNDC(t.clientX, t.clientY); pickArtworkAtNDC(mouseNDC); }
-        lookTouchId = null; lookStart = null;
-        break;
-      }
+      break;
     }
-    renderer.domElement.addEventListener("touchend", endLook);
-    renderer.domElement.addEventListener("touchcancel", endLook);
-  } catch (err) {
-    console.warn("[가상미술관] 모바일 시선 드래그 초기화 실패(다른 기능에는 영향 없음):", err.message || err);
+  }, { passive:true });
+  function endLook(e) {
+    if (lookTouchId === null) return;
+    for (const t of e.changedTouches) {
+      if (t.identifier !== lookTouchId) continue;
+      if (!dragMoved) { updateMouseNDC(t.clientX, t.clientY); pickArtworkAtNDC(mouseNDC); }
+      lookTouchId = null; lookStart = null;
+      break;
+    }
   }
+  renderer.domElement.addEventListener("touchend", endLook);
+  renderer.domElement.addEventListener("touchcancel", endLook);
+} catch (err) {
+  console.warn("[가상미술관] 모바일 시선 드래그 초기화 실패(다른 기능에는 영향 없음):", err.message || err);
 }
 
 /* =========================================================================
@@ -2074,7 +2062,6 @@ window.addEventListener("resize", () => {
 /* =========================================================================
    시작 화면 / 모달 UI 로직
    ========================================================================= */
-let mobileTutorialShown = false;
 document.getElementById("enterBtn").addEventListener("click", () => {
   document.getElementById("startScreen").style.display = "none";
   canvasEl.focus();
@@ -2082,16 +2069,6 @@ document.getElementById("enterBtn").addEventListener("click", () => {
   document.getElementById("roomLabel").style.display = "block";
   // 게스트(학생·학부모)는 애초에 로그인하지 않았으므로 로그아웃 버튼이 필요 없음 — 교사 계정일 때만 노출
   if (isTeacher) document.getElementById("logoutBtn").style.display = "block";
-  // 모바일이면 처음 입장할 때 한 번만 조작법 안내 오버레이를 보여줌
-  if (isTouch && !mobileTutorialShown) {
-    mobileTutorialShown = true;
-    document.getElementById("mobileTutorial").style.display = "flex";
-  }
-});
-
-document.getElementById("mobileTutorialCloseBtn").addEventListener("click", () => {
-  document.getElementById("mobileTutorial").style.display = "none";
-  canvasEl.focus();
 });
 
 document.getElementById("logoutBtn").addEventListener("click", async () => {
