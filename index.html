@@ -284,8 +284,17 @@
 
   /* ---------- 모달 모바일 대응 ---------- */
   @media (max-width: 640px) {
-    #modalOverlay { padding:0; }
-    #modalBox { max-height:100vh; border-radius:0; }
+    /* 기존에는 모달 박스 높이를 100vh로 고정하고 그 안에서만 스크롤되게 했는데, 세로로
+       긴(세로 방향) 그림처럼 내용이 많이 길어지는 경우 화면 중앙 정렬 특성상 박스의
+       위쪽/아래쪽이 실제 화면 바깥으로 밀려나면서 그림 윗부분과 등록 버튼이 잘려 보이지
+       않는 문제가 있었다. 박스 높이를 고정하는 대신, 오버레이 전체가 위에서부터 자연스럽게
+       쌓이고 필요하면 세로로 스크롤되도록 바꿔 내용이 아무리 길어도 끝까지 스크롤해서
+       확인할 수 있게 한다. */
+    #modalOverlay {
+      padding:0; align-items:flex-start;
+      overflow-y:auto; -webkit-overflow-scrolling:touch;
+    }
+    #modalBox { max-height:none; min-height:100%; border-radius:0; overflow-y:visible; }
     #modalInfo { min-width:0; padding:20px 18px 24px; }
     #modalImageWrap { min-width:0; padding:18px; }
     #commentInputRow { flex-wrap:wrap; }
@@ -2115,6 +2124,30 @@ document.getElementById("logoutBtn").addEventListener("click", async () => {
 
 let currentArtworkIndex = null;
 const modalOverlay = document.getElementById("modalOverlay");
+const imageZoomOverlay = document.getElementById("imageZoomOverlay");
+const imageZoomImg = document.getElementById("imageZoomImg");
+
+/* ---- 스마트폰 '뒤로 가기' 버튼 대응 ----
+   전시실(기본 화면) → 그림(모달) → 큰 그림(전체화면) 순으로 들어간 만큼, 뒤로 가기를 눌렀을 때도
+   한 단계씩만 닫히고 앱 자체를 벗어나지 않도록 브라우저 히스토리에 가상의 "단계"를 쌓아둔다.
+   - 그림을 열 때 history.pushState로 'modal' 단계를 하나 쌓는다.
+   - 큰 그림을 열 때 그 위에 'zoom' 단계를 하나 더 쌓는다.
+   - 뒤로 가기(popstate)가 발생하면, 지금 남아있는 단계에 맞춰 큰 그림/그림을 닫기만 하고
+     history는 건드리지 않는다 (이미 브라우저가 알아서 한 단계 되돌린 상태이기 때문).
+   - X 버튼이나 바깥 클릭으로 직접 닫을 때는 반대로, 화면은 우리가 먼저 닫고
+     history.back()을 호출해 쌓아뒀던 단계를 정리한다. 그러면 다음에 뒤로 가기를 눌러도
+     이미 닫힌 화면이 아니라 그 다음 단계(예: 전시실)로 정확히 이어진다. */
+function closeModal(opts) {
+  const fromPopstate = !!(opts && opts.fromPopstate);
+  modalOverlay.style.display = "none";
+  imageZoomOverlay.style.display = "none"; // 혹시 전체화면 뷰어가 열려 있었다면 함께 닫음
+  modalOpen = false;
+  currentArtworkIndex = null;
+  canvasEl.focus();
+  if (!fromPopstate && history.state && history.state.galleryView) {
+    history.back(); // 쌓아둔 히스토리 단계를 정리 (되돌아오면서 popstate가 다시 호출되지만 이미 닫혀있어 안전)
+  }
+}
 
 function openModal(index) {
   currentArtworkIndex = index;
@@ -2129,39 +2162,48 @@ function openModal(index) {
   // 모달이 열려 있는 동안 캐릭터가 계속 움직이지 않도록 입력 상태 초기화
   move.forward = move.back = move.left = move.right = false;
   look.up = look.down = look.left = look.right = false;
+  history.pushState({ galleryView: "modal" }, "");
 }
-
-function closeModal() {
-  modalOverlay.style.display = "none";
-  imageZoomOverlay.style.display = "none"; // 혹시 전체화면 뷰어가 열려 있었다면 함께 닫음
-  modalOpen = false;
-  currentArtworkIndex = null;
-  canvasEl.focus();
-}
-document.getElementById("closeModal").addEventListener("click", closeModal);
+document.getElementById("closeModal").addEventListener("click", () => closeModal());
 modalOverlay.addEventListener("click", (e) => { if (e.target === modalOverlay) closeModal(); });
 
 /* ---- 작품 이미지 전체화면 보기: 모달 안의 이미지를 한 번 더 누르면 화면 꽉 차게 확대 ---- */
-const imageZoomOverlay = document.getElementById("imageZoomOverlay");
-const imageZoomImg = document.getElementById("imageZoomImg");
-
 function openImageZoom() {
   const src = document.getElementById("modalImg").src;
   if (!src) return;
   imageZoomImg.src = src;
   imageZoomOverlay.style.display = "flex";
+  history.pushState({ galleryView: "zoom" }, "");
 }
-function closeImageZoom() {
+function closeImageZoom(opts) {
+  const fromPopstate = !!(opts && opts.fromPopstate);
   imageZoomOverlay.style.display = "none";
+  if (!fromPopstate && history.state && history.state.galleryView === "zoom") {
+    history.back();
+  }
 }
 document.getElementById("modalImg").addEventListener("click", (e) => {
   e.stopPropagation(); // 모달 바깥 클릭으로 오인되어 모달 자체가 닫히지 않도록 함
   openImageZoom();
 });
-imageZoomOverlay.addEventListener("click", closeImageZoom); // 이미지든 배경이든 어디를 눌러도 닫힘 (모바일에서 직관적)
+imageZoomOverlay.addEventListener("click", () => closeImageZoom()); // 이미지든 배경이든 어디를 눌러도 닫힘 (모바일에서 직관적)
 document.getElementById("imageZoomClose").addEventListener("click", (e) => { e.stopPropagation(); closeImageZoom(); });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && imageZoomOverlay.style.display === "flex") closeImageZoom();
+});
+
+// 스마트폰/브라우저의 '뒤로 가기'를 눌렀을 때 실행됨. 지금 남아있는 히스토리 단계를 보고
+// 큰 그림만 닫을지, 그림(모달)까지 닫을지를 판단한다.
+window.addEventListener("popstate", (e) => {
+  const view = e.state && e.state.galleryView;
+  if (view === "modal") {
+    // 큰 그림(zoom)에서 한 단계 뒤로 와 그림(modal) 단계에 도착한 경우: 큰 그림만 닫는다
+    closeImageZoom({ fromPopstate:true });
+  } else {
+    // 그림(modal)에서 한 단계 뒤로 와 전시실(기본) 단계로 돌아온 경우: 그림까지 닫는다
+    closeImageZoom({ fromPopstate:true });
+    if (modalOpen) closeModal({ fromPopstate:true });
+  }
 });
 
 function renderLikes() {
