@@ -1076,6 +1076,9 @@ const frameMat = new THREE.MeshStandardMaterial({ color:0xe8ddc6, roughness:0.5,
 const corridorFloorMat = new THREE.MeshStandardMaterial({ color:0x4d4f57, roughness:0.9, metalness:0.05 });
 // 출입구(문/아치) 프레임 — 전시실 경계를 눈에 띄게 표시하는 용도
 const doorFrameMat = new THREE.MeshStandardMaterial({ color:0xcaa15a, roughness:0.4, metalness:0.35 });
+// 로비 전용 브라스 라인 디테일 — doorFrameMat보다 더 밝고 광택 있게 잡아, 로비 출입문만
+// "한 단계 더 세련된" 느낌을 주고 전시실 문틀(doorFrameMat)과는 톤을 구분한다
+const lobbyBrassMat = new THREE.MeshStandardMaterial({ color:0xe0bd7a, roughness:0.22, metalness:0.75 });
 // 전시실마다 순서대로 돌려쓰는 포인트 컬러 (입구 스트라이프에 사용, 방마다 다른 색으로 구분감을 줌)
 const ROOM_ACCENT_COLORS = [0x4a86b5, 0xd9973d, 0x6a9c5b, 0xb0608f, 0xc4562f];
 
@@ -1126,6 +1129,61 @@ wallSeg(LOBBY.minX,LOBBY.minZ, WING_CENTER_A-CORR_HALF,LOBBY.minZ, LOBBY.h);
 wallSeg(WING_CENTER_A+CORR_HALF,LOBBY.minZ, WING_CENTER_B-CORR_HALF,LOBBY.minZ, LOBBY.h);
 wallSeg(WING_CENTER_B+CORR_HALF,LOBBY.minZ, LOBBY.maxX,LOBBY.minZ, LOBBY.h);
 
+/* ---------- 로비 전용 디자인 디테일 (Phase 5.5) ----------
+   전시실은 지금의 무채색·차분한 톤을 그대로 유지하고, 로비만 "감상 전 전환 공간"으로서
+   살짝 격을 높인다. 색을 새로 쓰기보다 조명·명암·재질 광택 차이로만 세련됨을 더하는 방향. */
+
+// 천장-벽 경계를 따라 은은한 웜톤 간접조명 라인(코브 라이트).
+// 실제 광원이 아니라 emissive 재질로 "빛나는 선"처럼 보이게 하는 방식이라
+// 조명 개수를 늘리지 않아 성능에 영향이 없다.
+const coveLightMat = new THREE.MeshStandardMaterial({
+  color:0xffdca8, emissive:0xffb86b, emissiveIntensity:1.4, roughness:0.6, metalness:0
+});
+function addLobbyCoveLight(x1,z1,x2,z2,nx,nz) {
+  const len = Math.hypot(x2-x1, z2-z1);
+  if (len < 0.3) return; // 문 폭보다 좁은 자투리 벽은 생략
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(len - 0.1, 0.07, 0.1), coveLightMat);
+  strip.position.set((x1+x2)/2 + nx*0.2, LOBBY.h - 0.14, (z1+z2)/2 + nz*0.2);
+  strip.rotation.y = -Math.atan2(z2-z1, x2-x1);
+  scene.add(strip);
+}
+addLobbyCoveLight(LOBBY.minX,LOBBY.minZ, LOBBY.minX,LOBBY.maxZ, 1, 0);   // 좌측 벽 (안쪽은 +x)
+addLobbyCoveLight(LOBBY.maxX,LOBBY.minZ, LOBBY.maxX,LOBBY.maxZ, -1, 0);  // 우측 벽 (안쪽은 -x)
+addLobbyCoveLight(LOBBY.minX,LOBBY.minZ, WING_CENTER_A-CORR_HALF,LOBBY.minZ, 0, 1);            // 뒷벽 조각1
+addLobbyCoveLight(WING_CENTER_A+CORR_HALF,LOBBY.minZ, WING_CENTER_B-CORR_HALF,LOBBY.minZ, 0, 1); // 뒷벽 조각2(두 문 사이)
+addLobbyCoveLight(WING_CENTER_B+CORR_HALF,LOBBY.minZ, LOBBY.maxX,LOBBY.minZ, 0, 1);            // 뒷벽 조각3
+
+// 바닥 중앙 메달리온(인레이 패턴) — 색을 새로 쓰지 않고 기존 바닥 팔레트 안에서
+// 명암 대비만 주는 원형 패턴. 브라스 톤 얇은 링으로 문틀 라인과 톤을 통일했다.
+function makeLobbyMedallionTexture() {
+  const c = document.createElement("canvas"); c.width = 512; c.height = 512;
+  const ctx = c.getContext("2d");
+  const cx = 256, cy = 256;
+  [
+    { r:256, color:"#7d5f3d" }, // 바깥쪽 원목 톤(기존 바닥과 자연스럽게 이어짐)
+    { r:222, color:"#93714b" },
+    { r:196, color:"#caa15a" }, // 브라스 톤 얇은 링(문틀 라인과 통일감)
+    { r:184, color:"#c9bda3" }, // 폴리시드 콘크리트 톤 중앙 원판
+  ].forEach(ring => {
+    ctx.beginPath(); ctx.arc(cx, cy, ring.r, 0, Math.PI*2);
+    ctx.fillStyle = ring.color; ctx.fill();
+  });
+  ctx.strokeStyle = "rgba(202,161,90,0.35)"; ctx.lineWidth = 2;
+  for (let i=0;i<8;i++) {
+    const a = (Math.PI*2/8)*i;
+    ctx.beginPath(); ctx.moveTo(cx,cy);
+    ctx.lineTo(cx+Math.cos(a)*182, cy+Math.sin(a)*182);
+    ctx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+const lobbyMedallionMat = new THREE.MeshStandardMaterial({ map:makeLobbyMedallionTexture(), roughness:0.35, metalness:0.15 });
+const lobbyMedallion = new THREE.Mesh(new THREE.CircleGeometry(1.9, 48), lobbyMedallionMat);
+lobbyMedallion.rotation.x = -Math.PI/2;
+lobbyMedallion.position.set(0, 0.01, (LOBBY.minZ + LOBBY.maxZ) / 2); // 바닥보다 살짝 띄워 z-fighting 방지
+lobbyMedallion.receiveShadow = true;
+scene.add(lobbyMedallion);
+
 // 전시실 개수에 맞춰 작품이 걸리는 벽 위치(왼쪽/오른쪽, z좌표)를 미리 계산해두는 헬퍼.
 // list.length에 맞춰 좌우 분할 후 등간격으로 배치 (기존 단일 전시실 로직과 동일한 간격 유지)
 function computeRoomDepth(count) {
@@ -1153,8 +1211,10 @@ function buildCorridorWalls(corr) {
 
 // 출입구(문/아치) 프레임 — 벽이 뚫려서 생긴 통로마다 기둥 2개 + 상인방(윗틀)을 세워
 // "여기가 방과 방을 잇는 문이다"라는 걸 어두운 공간에서도 눈에 띄게 표시한다.
+// accent=true(로비 출입문 전용): 기존 문틀 위에 더 광택 있는 얇은 브라스 라인을 덧대
+// 로비만 살짝 격을 높인 느낌을 준다 (전시실 문틀은 그대로 유지해 방들의 차분한 톤을 지킴)
 const DOOR_H = 4.0;
-function buildDoorFrame(centerX, z, doorWidth) {
+function buildDoorFrame(centerX, z, doorWidth, accent) {
   const postW = 0.18, postD = 0.4, lintelH = 0.22; // 벽 두께(0.25)보다 확실히 두껍게 만들어 벽면과 겹치는 부분에서 깜빡임(z-fighting)이 생기지 않도록 함
   const postGeo = new THREE.BoxGeometry(postW, DOOR_H, postD);
   [-(doorWidth/2 + postW/2), (doorWidth/2 + postW/2)].forEach(dx => {
@@ -1165,6 +1225,20 @@ function buildDoorFrame(centerX, z, doorWidth) {
   const lintel = new THREE.Mesh(new THREE.BoxGeometry(doorWidth + postW*2, lintelH, postD), doorFrameMat);
   lintel.position.set(centerX, DOOR_H - lintelH/2, z);
   scene.add(lintel);
+
+  if (accent) {
+    // 기둥 안쪽 면을 따라 얇은 세로 브라스 라인 두 줄
+    const lineGeo = new THREE.BoxGeometry(0.04, DOOR_H - 0.3, postD + 0.02);
+    [-(doorWidth/2 + 0.03), (doorWidth/2 + 0.03)].forEach(dx => {
+      const line = new THREE.Mesh(lineGeo, lobbyBrassMat);
+      line.position.set(centerX + dx, (DOOR_H - 0.3)/2 + 0.15, z);
+      scene.add(line);
+    });
+    // 상인방 바로 아래를 가로지르는 얇은 브라스 라인
+    const topLine = new THREE.Mesh(new THREE.BoxGeometry(doorWidth + postW*2 + 0.1, 0.035, postD + 0.02), lobbyBrassMat);
+    topLine.position.set(centerX, DOOR_H - lintelH - 0.06, z);
+    scene.add(topLine);
+  }
 }
 
 // 복도 한가운데 은은한 쿨톤 보조등 — 전시실의 따뜻한 스포트라이트와 대비되어
@@ -1284,8 +1358,8 @@ function addLobbyDoorSign(centerX, label, sub) {
 
 function buildRoomsAndCorridors(roomsData) {
   SEGMENTS = [{ type:"lobby", label:"로비", minX:LOBBY.minX, maxX:LOBBY.maxX, minZ:LOBBY.minZ, maxZ:LOBBY.maxZ }];
-  buildDoorFrame(WING_CENTER_A, LOBBY.minZ, CORR_WIDTH); // 로비 → A동(나가는 길)
-  buildDoorFrame(WING_CENTER_B, LOBBY.minZ, CORR_WIDTH); // B동(돌아오는 길) → 로비
+  buildDoorFrame(WING_CENTER_A, LOBBY.minZ, CORR_WIDTH, true); // 로비 → A동(나가는 길)
+  buildDoorFrame(WING_CENTER_B, LOBBY.minZ, CORR_WIDTH, true); // B동(돌아오는 길) → 로비
 
   // 절반은 A동, 나머지 절반은 B동. B동은 순서를 뒤집어 지어서, 연결 통로를 지나 로비 쪽으로
   // 걸어올 때 원래 전시실 번호 순서(…, N-1, N) 그대로 마주치도록 한다.
