@@ -604,6 +604,16 @@
         </div>
         <div id="adminMgInfoMsg" class="admin-row-status"></div>
 
+        <h2 style="margin-top:30px;">현재 전시장</h2>
+        <p class="admin-help">
+          방문자(학생·학부모)가 QR코드나 링크로 접속했을 때 보게 되는 전시는 <b>하나</b>뿐이에요.
+          예전에 만든 전시를 다시 보여주고 싶으면 여기서 "현재 전시장으로 설정"을 눌러주세요.
+        </p>
+        <div class="admin-actions-row">
+          <button type="button" id="adminMgSetActiveBtn" class="admin-btn-primary">⭐ 이 전시를 현재 전시장으로 설정</button>
+        </div>
+        <div id="adminMgActiveStatus" class="admin-row-status"></div>
+
         <h2 style="margin-top:30px;">감상 결과 리포트</h2>
         <p class="admin-help">
           학생들이 남긴 좋아요·댓글을 작품별로 정리해 <b>다운로드 폴더에 저장되는 파일 하나</b>로
@@ -2637,6 +2647,7 @@ async function uploadAllArtworks() {
      전시 통째 삭제까지 지원
    ========================================================================= */
 let currentMgExhibitionId = null;
+let currentLiveExhibitionId = null; // 지금 방문자(관람객)에게 보여지는 전시의 id — loadArtworksData()가 created_at 최신순으로 하나만 고르므로, 그 기준과 동일하게 계산해서 추적한다
 let mgArtworksById = {}; // { artworkId: {id, room_id, room_number, student_name, title, image_url} }
 let mgRooms = []; // [{id, room_number, name}] — 현재 선택된 전시의 전시실 목록
 let mgArtRowsForRender = []; // renderMgRooms()에 마지막으로 넘긴 작품 배열 (순서 변경 후 재렌더링에 사용)
@@ -2668,9 +2679,15 @@ async function loadExhibitionsList() {
       const opt = document.createElement("option");
       opt.value = ex.id;
       const meta = [ex.grade ? `${ex.grade}학년` : null, ex.class || null].filter(Boolean).join(" ");
-      opt.textContent = meta ? `${ex.title} (${meta})` : ex.title;
+      const label = meta ? `${ex.title} (${meta})` : ex.title;
+      opt.textContent = label;
       select.appendChild(opt);
     });
+    // 정렬 기준(created_at 최신순)의 맨 앞이 곧 방문자에게 실제로 보여지는 전시와 같다
+    currentLiveExhibitionId = (data && data.length) ? data[0].id : null;
+    if (select.options.length > 1) {
+      select.options[1].textContent = "⭐ " + select.options[1].textContent + " (현재 전시 중)";
+    }
 
     if (prevValue && [...select.options].some(o => o.value === prevValue)) {
       select.value = prevValue;
@@ -2692,6 +2709,53 @@ document.getElementById("adminExhibitionSelect").addEventListener("change", (e) 
   loadExhibitionDetail(id);
 });
 
+// 선택된 전시가 지금 방문자에게 보이는 전시(currentLiveExhibitionId)와 같은지에 따라
+// "현재 전시장으로 설정" 버튼을 켜고 끄고, 안내 문구를 갱신한다.
+function updateMgActiveButtonState() {
+  const btn = document.getElementById("adminMgSetActiveBtn");
+  const statusEl = document.getElementById("adminMgActiveStatus");
+  if (!btn || !statusEl) return;
+  const isLive = !!currentMgExhibitionId && currentMgExhibitionId === currentLiveExhibitionId;
+  btn.disabled = isLive;
+  btn.style.opacity = isLive ? "0.55" : "1";
+  btn.style.cursor = isLive ? "default" : "pointer";
+  statusEl.textContent = isLive ? "✅ 지금 방문자들이 보고 있는 전시예요." : "";
+  statusEl.style.color = "#3c7a37";
+}
+
+document.getElementById("adminMgSetActiveBtn").addEventListener("click", async () => {
+  if (!currentMgExhibitionId || currentMgExhibitionId === currentLiveExhibitionId) return;
+  const title = document.getElementById("adminMgTitle").value || "이 전시";
+  const ok = confirm(`"${title}"(을)를 지금 방문자들이 보는 전시장으로 설정할까요?\n(지금 전시 중이던 다른 전시는 더 이상 보이지 않게 돼요.)`);
+  if (!ok) return;
+
+  const btn = document.getElementById("adminMgSetActiveBtn");
+  const statusEl = document.getElementById("adminMgActiveStatus");
+  btn.disabled = true;
+  statusEl.textContent = "설정하는 중...";
+  statusEl.style.color = "";
+
+  try {
+    // 방문자 화면(loadArtworksData)은 created_at이 가장 최근인 전시를 그대로 보여주므로,
+    // 이 전시의 created_at을 지금 시각으로 갱신해 "가장 최근 전시"로 만든다. 테이블 구조를
+    // 새로 바꾸지 않고도 어떤 전시든 다시 "현재 전시장"으로 되돌릴 수 있는 방법이다.
+    const { error } = await supabaseClient
+      .from("exhibitions")
+      .update({ created_at: new Date().toISOString() })
+      .eq("id", currentMgExhibitionId);
+    if (error) throw error;
+
+    const savedId = currentMgExhibitionId;
+    await loadExhibitionsList();          // 목록의 정렬·⭐표시를 최신 상태로 갱신
+    await loadExhibitionDetail(savedId, true); // 상세 패널을 다시 채우면서 버튼 상태도 함께 갱신됨
+  } catch (err) {
+    console.warn("[가상미술관] 현재 전시장 설정 실패:", err.message || err);
+    statusEl.textContent = "설정에 실패했어요: " + (err.message || err);
+    statusEl.style.color = "#c0503f";
+    btn.disabled = false;
+  }
+});
+
 async function loadExhibitionDetail(exhibitionId, keepAddStatus) {
   const detailSection = document.getElementById("adminManageDetail");
   const roomsWrap = document.getElementById("adminMgRoomsWrap");
@@ -2709,6 +2773,7 @@ async function loadExhibitionDetail(exhibitionId, keepAddStatus) {
     document.getElementById("adminMgTitle").value = exRow.title || "";
     document.getElementById("adminMgGrade").value = exRow.grade ?? "";
     document.getElementById("adminMgClass").value = exRow.class || "";
+    updateMgActiveButtonState();
 
     const { data: rooms, error: roomErr } = await supabaseClient
       .from("rooms").select("id, room_number, name").eq("exhibition_id", exhibitionId)
