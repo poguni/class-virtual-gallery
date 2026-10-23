@@ -522,6 +522,7 @@
     <div class="admin-tabs">
       <button type="button" class="admin-tab active" data-tab="create">새 전시 만들기</button>
       <button type="button" class="admin-tab" data-tab="manage">기존 전시 관리</button>
+      <button type="button" class="admin-tab" data-tab="teachers" id="adminTeachersTab" style="display:none;">교사 승인</button>
     </div>
 
     <!-- 탭 1: 새 전시 만들기 -->
@@ -670,6 +671,25 @@
         <button id="adminMgAddUploadBtn" type="button" class="admin-btn-primary" disabled style="margin-top:10px;">이 전시에 추가 업로드</button>
       </section>
     </div>
+
+    <!-- 탭 3: 교사 승인 (관리자 계정에만 표시) -->
+    <div id="adminTeachersPanel" style="display:none;">
+      <section class="admin-section">
+        <h2>교사 계정 승인</h2>
+        <p class="admin-help">
+          회원가입한 선생님은 <b>승인 대기</b> 상태로 등록돼요. 승인해야 교사용 업로드 관리자를 사용할 수 있고,
+          각 선생님은 자기 전시만 보고 관리할 수 있어요.
+        </p>
+        <div class="admin-actions-row">
+          <button type="button" id="adminTeachersRefreshBtn" class="admin-danger" style="border-color:rgba(255,222,170,0.35); color:#f0dcb8;">목록 새로고침</button>
+        </div>
+        <table class="admin-preview-table" style="margin-top:14px;">
+          <thead><tr><th>이메일</th><th>가입일</th><th>상태</th><th>변경</th></tr></thead>
+          <tbody id="adminTeachersBody"></tbody>
+        </table>
+        <div id="adminTeachersMsg" class="admin-row-status"></div>
+      </section>
+    </div>
   </div>
 
 </div>
@@ -726,7 +746,29 @@
 // (Service Role Key는 절대 이 파일에 넣지 마세요)
 const SUPABASE_URL = "https://xloetjawdupadtfquxka.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhsb2V0amF3ZHVwYWR0ZnF1eGthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NDE1NjMsImV4cCI6MjEwMDMxNzU2M30.pFqhpRiRnpH0uxnspV5lNoti_JSfB04anTb0tlaMm9s";
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// 좋아요 중복 방지용 방문자 고유 키 (localStorage 저장)
+// — 모든 요청에 x-visitor-key 헤더로 실어 보내, RLS가 "내 좋아요"만 조회·취소하도록 판별함
+function getOrCreateVisitorKey() {
+  try {
+    let key = localStorage.getItem("gallery_visitor_key");
+    if (!key) {
+      key = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `v-${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
+      localStorage.setItem("gallery_visitor_key", key);
+    }
+    return key;
+  } catch (e) {
+    // localStorage 접근 불가(프라이빗 모드 등) 시 세션 한정 키로 대체
+    return `v-${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
+  }
+}
+const VISITOR_KEY = getOrCreateVisitorKey();
+
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  global: { headers: { "x-visitor-key": VISITOR_KEY } }
+});
+
+// 방문자가 받은 교사별 공유 링크(?t=코드). 없으면 관리자의 현재 전시를 보여줌
+const SHARE_CODE_FROM_URL = new URLSearchParams(location.search).get("t");
 
 const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d).{10,}$/; // 문자+숫자 포함, 10자 이상
 
@@ -740,7 +782,8 @@ const authMsgEl = document.getElementById("authMsg");
 const authSubmitBtn = document.getElementById("authSubmitBtn");
 const passwordHintEl = document.getElementById("passwordHint");
 let authMode = "login"; // "login" | "signup"
-let isTeacher = false; // 로그인(이메일/구글) 성공 시 true, 게스트 입장 시 false
+let isTeacher = false; // 관리자 승인을 받은 교사 계정으로 로그인했을 때만 true, 게스트 입장 시 false
+let currentTeacher = null; // { user_id, status, is_admin, share_code } — teachers 테이블의 내 행
 
 function setAuthError(msg) {
   authMsgEl.classList.remove("show");
@@ -770,13 +813,21 @@ passwordHintEl.style.display = "none"; // 기본은 로그인 탭
 /* ---------- 시작 화면 QR코드 (학부모가 휴대폰으로 스캔해 같은 주소로 접속) ----------
    전시 URL은 배포 후 window.location으로 자동 결정되므로, 저장소/도메인이 바뀌어도
    코드 수정 없이 항상 "지금 보고 있는 이 페이지"의 주소로 QR이 만들어집니다. */
+// 공유 주소: 교사 로그인 시 본인 공유 코드, 공유 링크로 들어온 방문자는 그 코드를 그대로 붙임
+function getShareUrl() {
+  const code = (currentTeacher && currentTeacher.share_code) || SHARE_CODE_FROM_URL;
+  const base = location.origin + location.pathname; // #hash 등은 제외한 순수 접속 주소
+  return code ? `${base}?t=${encodeURIComponent(code)}` : base;
+}
+
 function renderEntryQR() {
   const box = document.getElementById("qrEntryBox");
   const wrap = document.getElementById("qrCanvasWrap");
   if (!box || !wrap) return;
+  wrap.innerHTML = ""; // 로그인 후 공유 코드가 정해지면 다시 그림
   try {
     if (typeof QRCode === "undefined") throw new Error("QRCode 라이브러리 로드 실패");
-    const shareUrl = location.origin + location.pathname; // ?query, #hash는 제외한 순수 접속 주소
+    const shareUrl = getShareUrl();
     new QRCode(wrap, {
       text: shareUrl,
       width: 104,
@@ -794,7 +845,7 @@ renderEntryQR();
 
 document.getElementById("qrCopyLinkBtn").addEventListener("click", async () => {
   const btn = document.getElementById("qrCopyLinkBtn");
-  const shareUrl = location.origin + location.pathname;
+  const shareUrl = getShareUrl();
   try {
     await navigator.clipboard.writeText(shareUrl);
     const original = btn.textContent;
@@ -833,15 +884,15 @@ authForm.addEventListener("submit", async (e) => {
       const { data, error } = await supabaseClient.auth.signUp({ email, password });
       if (error) throw error;
       if (data.session) {
-        showGalleryEntry(true);
+        await enterWithSession(data.session); // 새 계정은 승인 대기 상태라 안내 문구와 함께 로그인 화면에 머묾
       } else {
-        setAuthMsg("가입 확인 메일을 보냈어요. 메일함을 확인한 뒤 로그인해주세요.");
+        setAuthMsg("가입 확인 메일을 보냈어요. 메일을 확인하고 관리자 승인을 받으면 로그인할 수 있어요.");
         document.querySelector('.authTab[data-mode="login"]').click();
       }
     } else {
-      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      showGalleryEntry(true);
+      await enterWithSession(data.session);
     }
   } catch (err) {
     setAuthError(translateAuthError(err.message));
@@ -873,12 +924,58 @@ document.getElementById("guestEnterBtn").addEventListener("click", () => {
   showGalleryEntry(false);
 });
 
-// 이미 로그인된 세션이 있으면(예: 구글 로그인 리다이렉트 복귀) 바로 통과 — 세션이 있다는 것은 교사 계정
+// 로그인 세션 → teachers 테이블에서 승인 상태를 확인한 뒤 입장.
+// 승인 전(pending)·거절(rejected) 계정은 관리 기능을 쓸 수 없으므로 로그아웃하고 안내만 보여줌
+let enteringUserId = null; // onAuthStateChange·getSession·로그인 버튼이 동시에 불러도 한 번만 처리
+async function enterWithSession(session) {
+  if (!session) return;
+  const uid = session.user.id;
+  if (enteringUserId === uid) return;
+  enteringUserId = uid;
+  try {
+    const { data, error } = await supabaseClient.from("teachers")
+      .select("user_id, status, is_admin, share_code").eq("user_id", uid).maybeSingle();
+    if (error) throw error;
+    if (!data || data.status !== "approved") {
+      await supabaseClient.auth.signOut();
+      enteringUserId = null;
+      setAuthMsg(data && data.status === "rejected"
+        ? "교사 계정 사용이 승인되지 않았어요. 관리자에게 문의해주세요."
+        : "관리자 승인을 기다리고 있어요. 승인된 뒤 다시 로그인해주세요.");
+      return;
+    }
+    currentTeacher = data;
+
+    // 공유 링크 없이 들어왔는데 지금 불러온 전시가 내 전시 기준이 아니면(로그인 전에 불러온 경우)
+    // 내 현재 전시로 다시 불러오기 위해 새로고침 — 새로고침 후에는 세션 기준으로 불러오므로 한 번만 일어남
+    if (!SHARE_CODE_FROM_URL) {
+      await waitForArtworksLoad();
+      if (LOADED_AS_USER !== uid) { location.reload(); return; }
+    }
+    renderEntryQR();
+    showGalleryEntry(true);
+  } catch (err) {
+    enteringUserId = null;
+    console.warn("[가상미술관] 교사 계정 확인 실패:", err.message || err);
+    setAuthError("계정 정보를 확인하지 못했어요. 잠시 후 다시 시도해주세요.");
+  }
+}
+
+// 전시 데이터 로딩(아래 스크립트의 artworksLoadPromise)이 끝날 때까지 대기
+async function waitForArtworksLoad() {
+  if (document.readyState === "loading") {
+    await new Promise(r => document.addEventListener("DOMContentLoaded", r, { once:true }));
+  }
+  await window.artworksLoadPromise;
+}
+
+// 이미 로그인된 세션이 있으면(예: 새로고침, 구글 로그인 리다이렉트 복귀) 승인 여부 확인 후 통과
+// (onAuthStateChange 콜백 안에서 바로 Supabase를 호출하면 멈출 수 있어 setTimeout으로 한 박자 미룸)
 supabaseClient.auth.onAuthStateChange((_event, session) => {
-  if (session) showGalleryEntry(true);
+  if (session) setTimeout(() => enterWithSession(session), 0);
 });
 supabaseClient.auth.getSession().then(({ data }) => {
-  if (data.session) showGalleryEntry(true);
+  if (data.session) enterWithSession(data.session);
 });
 </script>
 <script>
@@ -1027,30 +1124,34 @@ function buildDemoArtworks() {
    ========================================================================= */
 let CURRENT_ROOM_IDS = [];    // 현재 표시 중인 전시의 전시실 UUID 목록 (데모 모드에서는 빈 배열)
 let DEMO_MODE = false;        // true면 좋아요/댓글이 로컬 메모리에만 저장됨 (Supabase 미연동 상태)
-
-function getOrCreateVisitorKey() {
-  try {
-    let key = localStorage.getItem("gallery_visitor_key");
-    if (!key) {
-      key = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `v-${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
-      localStorage.setItem("gallery_visitor_key", key);
-    }
-    return key;
-  } catch (e) {
-    // localStorage 접근 불가(프라이빗 모드 등) 시 세션 한정 키로 대체
-    return `v-${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
-  }
-}
-const VISITOR_KEY = getOrCreateVisitorKey();
+let LOADED_AS_USER = null;    // 전시를 불러올 때 기준이 된 교사 계정 id (게스트/공유 링크로 불러왔으면 null)
+let OWNS_LOADED_EXHIBITION = false; // 지금 보고 있는 전시가 로그인한 교사 본인의 전시인지 (댓글 숨김 버튼 노출 기준)
 
 // 반환값: [{ id, room_number, name, artworks:[...] }, ...] — 전시실 순서(room_number) 그대로,
 // 각 전시실의 작품은 등록 순서(created_at) 그대로 담긴 "방 단위" 배열 (Phase 4: 다중 전시실 지원)
 async function loadArtworksData() {
   try {
-    const { data: exhibitions, error: exErr } = await supabaseClient
-      .from("exhibitions").select("id, title, grade, class").order("created_at", { ascending:false }).limit(1);
-    if (exErr) throw exErr;
-    if (!exhibitions || !exhibitions.length) throw new Error("등록된 전시가 없습니다");
+    // 어떤 전시를 보여줄지 결정
+    //  - 공유 링크(?t=코드)로 접속: 그 교사의 현재 전시
+    //  - 교사 세션이 있으면: 내 현재 전시
+    //  - 그 외(코드 없는 기존 QR·링크): 관리자의 현재 전시
+    let exhibitions;
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const sessionUserId = sessionData.session ? sessionData.session.user.id : null;
+    if (!SHARE_CODE_FROM_URL && sessionUserId) {
+      LOADED_AS_USER = sessionUserId; // 내 전시가 없어 데모로 넘어가더라도 "내 기준으로 불러옴"은 기록
+      const { data, error } = await supabaseClient
+        .from("exhibitions").select("id, title, grade, class")
+        .eq("owner_id", sessionUserId).eq("is_active", true).limit(1);
+      if (error) throw error;
+      exhibitions = data;
+      OWNS_LOADED_EXHIBITION = true;
+    } else {
+      const { data, error } = await supabaseClient.rpc("get_active_exhibition", { p_code: SHARE_CODE_FROM_URL });
+      if (error) throw error;
+      exhibitions = data;
+    }
+    if (!exhibitions || !exhibitions.length) throw new Error("현재 전시 중인 전시가 없습니다");
 
     const { data: rooms, error: roomErr } = await supabaseClient
       .from("rooms").select("id, room_number, name")
@@ -1070,14 +1171,13 @@ async function loadArtworksData() {
 
     const ids = rows.map(r => r.id);
 
-    // 좋아요 집계 + 내 좋아요 여부(visitor_key 기준)
-    const { data: likeRows } = await supabaseClient
-      .from("likes").select("artwork_id, visitor_key").in("artwork_id", ids);
+    // 좋아요 집계(like_counts RPC) + 내 좋아요 여부(RLS상 likes 행은 내 visitor_key 것만 내려옴)
+    const { data: countRows } = await supabaseClient.rpc("like_counts", { p_artwork_ids: ids });
     const likeCountMap = {}, likedByMeSet = new Set();
-    (likeRows || []).forEach(l => {
-      likeCountMap[l.artwork_id] = (likeCountMap[l.artwork_id] || 0) + 1;
-      if (l.visitor_key === VISITOR_KEY) likedByMeSet.add(l.artwork_id);
-    });
+    (countRows || []).forEach(c => { likeCountMap[c.artwork_id] = Number(c.like_count); });
+    const { data: likeRows } = await supabaseClient
+      .from("likes").select("artwork_id, visitor_key").in("artwork_id", ids).eq("visitor_key", VISITOR_KEY);
+    (likeRows || []).forEach(l => likedByMeSet.add(l.artwork_id));
 
     // 댓글 (RLS: 비로그인은 숨김 아닌 댓글만, 교사는 숨김 포함 전체가 자동으로 내려옴)
     const { data: commentRows } = await supabaseClient
@@ -1117,6 +1217,7 @@ async function loadArtworksData() {
   } catch (err) {
     console.warn("[가상미술관] Supabase 데이터를 불러오지 못해 데모 데이터로 대체합니다:", err.message || err);
     DEMO_MODE = true;
+    OWNS_LOADED_EXHIBITION = false;
     CURRENT_ROOM_IDS = [];
     const demoRooms = buildDemoArtworks();
     demoRooms.exhibitionInfo = { title: null, grade: null, class: null }; // 데모 모드: 특정 학년/반이 없으므로 사인은 기본 문구로 표시됨
@@ -1716,7 +1817,8 @@ function updateRoomLighting(seg) {
 
 // Supabase에서 방 단위 작품 데이터를 비동기로 불러온 뒤, 전시실 개수만큼 복도·전시실을 이어 붙이고
 // 각 방 벽에 그 방의 작품들을 배치한다 (실패 시 자동으로 데모 데이터 사용, Phase 4: 다중 전시실)
-loadArtworksData().then((roomsData) => {
+// (로그인 흐름에서 "어느 계정 기준으로 불러왔는지" 확인할 수 있도록 Promise를 전역에 보관)
+window.artworksLoadPromise = loadArtworksData().then((roomsData) => {
   buildLobbySign(roomsData.exhibitionInfo);
   const builtRooms = buildRoomsAndCorridors(roomsData);
   artworks = [];
@@ -2114,22 +2216,9 @@ document.getElementById("logoutBtn").addEventListener("click", async () => {
   } catch (err) {
     console.warn("[가상미술관] 로그아웃 처리 중 오류:", err.message || err);
   }
-  isTeacher = false;
-
-  // 로그아웃 순간까지 눌려 있던 이동/시선 키 입력이 로그인 화면에 남아있지 않도록 초기화
-  move.forward = move.back = move.left = move.right = false;
-  look.up = look.down = look.left = look.right = false;
-
-  // 갤러리 HUD를 모두 숨기고 다시 로그인 화면으로 복귀 (게스트로 재입장하거나 다시 로그인 가능)
-  btn.style.display = "none";
-  document.getElementById("hint").style.display = "none";
-  document.getElementById("roomLabel").style.display = "none";
-  startScreenEl.style.display = "none";
-  authScreenEl.style.display = "flex";
-  authPasswordInput.value = "";
-  setAuthError(""); setAuthMsg("");
-
-  btn.disabled = false;
+  // 지금 화면의 전시는 교사 기준(숨김 댓글 포함)으로 불러온 것이므로, 새로고침해서
+  // 방문자 기준으로 다시 불러온 로그인 화면으로 복귀 (게스트로 재입장하거나 다시 로그인 가능)
+  location.reload();
 });
 
 let currentArtworkIndex = null;
@@ -2273,8 +2362,8 @@ function renderComments() {
     const hiddenBadge = c.is_hidden ? `<span style="color:#ff9d8a;font-size:11px;margin-left:6px;">(숨김됨)</span>` : "";
     div.innerHTML = `<span class="cName">${escapeHtml(c.nickname)}</span><span class="cText">${escapeHtml(c.content)}</span>${hiddenBadge}`;
 
-    // 교사 로그인 상태이고, 실제 DB 댓글(id 보유)일 때만 숨김/복원 버튼 노출
-    if (isTeacher && !DEMO_MODE && c.id) {
+    // 교사 본인의 전시를 보고 있고, 실제 DB 댓글(id 보유)일 때만 숨김/복원 버튼 노출
+    if (isTeacher && OWNS_LOADED_EXHIBITION && !DEMO_MODE && c.id) {
       const modBtn = document.createElement("button");
       modBtn.textContent = c.is_hidden ? "복원" : "숨김";
       modBtn.style.cssText = "margin-left:8px;font-size:11px;background:transparent;border:1px solid #5a4f3c;color:#c9bca3;border-radius:5px;padding:2px 8px;cursor:pointer;";
@@ -2353,6 +2442,7 @@ const STORAGE_BUCKET = "artwork-images"; // Supabase 대시보드에서 미리 �
 document.getElementById("adminOpenBtn").addEventListener("click", () => {
   startScreenEl.style.display = "none";
   document.getElementById("adminScreen").style.display = "block";
+  document.getElementById("adminTeachersTab").style.display = currentTeacher && currentTeacher.is_admin ? "" : "none";
 });
 document.getElementById("adminCloseBtn").addEventListener("click", () => {
   document.getElementById("adminScreen").style.display = "none";
@@ -2367,9 +2457,69 @@ document.querySelectorAll(".admin-tab").forEach(tab => {
     const target = tab.dataset.tab;
     document.getElementById("adminCreatePanel").style.display = target === "create" ? "block" : "none";
     document.getElementById("adminManagePanel").style.display = target === "manage" ? "block" : "none";
+    document.getElementById("adminTeachersPanel").style.display = target === "teachers" ? "block" : "none";
     if (target === "manage") loadExhibitionsList();
+    if (target === "teachers") loadTeachersList();
   });
 });
+
+/* ---------- 교사 계정 승인 (관리자 전용) ----------
+   teachers 테이블: 회원가입 시 DB 트리거가 'pending'으로 자동 등록,
+   RLS상 관리자만 전체 목록 조회·상태 변경 가능 */
+const TEACHER_STATUS_LABEL = { pending:"승인 대기", approved:"승인됨", rejected:"거절됨" };
+
+async function loadTeachersList() {
+  const tbody = document.getElementById("adminTeachersBody");
+  const msg = document.getElementById("adminTeachersMsg");
+  tbody.innerHTML = "";
+  msg.textContent = "불러오는 중...";
+  try {
+    const { data, error } = await supabaseClient
+      .from("teachers").select("user_id, email, status, is_admin, created_at")
+      .order("created_at", { ascending:false });
+    if (error) throw error;
+    msg.textContent = "";
+    (data || []).forEach(t => {
+      const tr = document.createElement("tr");
+      const date = new Date(t.created_at).toLocaleDateString("ko-KR");
+      tr.innerHTML = `<td>${escapeHtml(t.email)}${t.is_admin ? " (관리자)" : ""}</td><td>${date}</td>` +
+                     `<td>${TEACHER_STATUS_LABEL[t.status] || t.status}</td><td></td>`;
+      const actions = tr.lastElementChild;
+      if (!t.is_admin) {
+        if (t.status !== "approved") actions.appendChild(makeTeacherStatusBtn(t, "approved", "승인", "admin-save"));
+        if (t.status !== "rejected") actions.appendChild(makeTeacherStatusBtn(t, "rejected", "거절", "admin-danger"));
+      }
+      tbody.appendChild(tr);
+    });
+    if (!data || !data.length) msg.textContent = "가입한 교사가 없어요.";
+  } catch (err) {
+    console.warn("[가상미술관] 교사 목록 로드 실패:", err.message || err);
+    msg.textContent = "교사 목록을 불러오지 못했어요: " + (err.message || err);
+  }
+}
+
+function makeTeacherStatusBtn(teacher, nextStatus, label, className) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = className;
+  btn.textContent = label;
+  btn.addEventListener("click", async () => {
+    if (!confirm(`${teacher.email} 계정을 "${TEACHER_STATUS_LABEL[nextStatus]}" 상태로 바꿀까요?`)) return;
+    btn.disabled = true;
+    const { error } = await supabaseClient.from("teachers")
+      .update({ status: nextStatus, approved_at: nextStatus === "approved" ? new Date().toISOString() : null })
+      .eq("user_id", teacher.user_id);
+    if (error) {
+      console.warn("[가상미술관] 교사 상태 변경 실패:", error.message);
+      alert("상태를 바꾸지 못했어요: " + error.message);
+      btn.disabled = false;
+      return;
+    }
+    loadTeachersList();
+  });
+  return btn;
+}
+document.getElementById("adminTeachersRefreshBtn").addEventListener("click", loadTeachersList);
 
 // 파일명에서 학생 이름 / 작품 제목을 추정
 // "번호_이름_제목.jpg" → 이름+제목 / "이름_제목.jpg" → 이름+제목 / 그 외 → 제목만 추정, 이름은 빈칸
@@ -2621,12 +2771,25 @@ async function uploadAllArtworks() {
       progressFill.style.width = `${Math.round(((i+1)/adminFiles.length)*100)}%`;
     }
 
+    // 3) 현재 전시가 아직 없는 교사라면 새 전시를 바로 현재 전시로 지정.
+    //    이미 현재 전시가 있으면, 관람 중인 학생 화면이 갑자기 바뀌지 않도록 그대로 두고 안내만 함
+    let activeNote = "";
+    const { data: activeRows } = await supabaseClient
+      .from("exhibitions").select("id").eq("owner_id", currentTeacher.user_id).eq("is_active", true).limit(1);
+    if (!activeRows || !activeRows.length) {
+      const { error: actErr } = await supabaseClient.rpc("set_active_exhibition", { p_ex: exhibitionId });
+      activeNote = actErr ? " (현재 전시장 설정에 실패했어요. '기존 전시 관리'에서 다시 설정해주세요.)"
+                          : " 이 전시가 현재 전시장으로 설정되었어요.";
+    } else {
+      activeNote = " 방문자에게 보여주려면 '기존 전시 관리'에서 \"현재 전시장으로 설정\"을 눌러주세요.";
+    }
+
     if (failCount === 0) {
       resultMsg.className = "admin-success";
-      resultMsg.textContent = `✅ 업로드 완료! 총 ${successCount}장이 전시실 ${counts.length}개에 배정되었습니다 (${counts.join("/")}편).`;
+      resultMsg.textContent = `✅ 업로드 완료! 총 ${successCount}장이 전시실 ${counts.length}개에 배정되었습니다 (${counts.join("/")}편).` + activeNote;
     } else {
       resultMsg.className = "admin-warning";
-      resultMsg.textContent = `⚠️ 업로드 완료 (성공 ${successCount} / 실패 ${failCount}). 실패한 작품은 표에서 이름·제목을 확인한 뒤 다시 시도해주세요.`;
+      resultMsg.textContent = `⚠️ 업로드 완료 (성공 ${successCount} / 실패 ${failCount}). 실패한 작품은 표에서 이름·제목을 확인한 뒤 다시 시도해주세요.` + activeNote;
     }
     progressText.textContent = "완료";
     reloadBtn.style.display = "inline-block";
@@ -2647,7 +2810,7 @@ async function uploadAllArtworks() {
      전시 통째 삭제까지 지원
    ========================================================================= */
 let currentMgExhibitionId = null;
-let currentLiveExhibitionId = null; // 지금 방문자(관람객)에게 보여지는 전시의 id — loadArtworksData()가 created_at 최신순으로 하나만 고르므로, 그 기준과 동일하게 계산해서 추적한다
+let currentLiveExhibitionId = null; // 내 전시 중 지금 방문자(관람객)에게 보여지는 전시(is_active)의 id
 let mgArtworksById = {}; // { artworkId: {id, room_id, room_number, student_name, title, image_url} }
 let mgRooms = []; // [{id, room_number, name}] — 현재 선택된 전시의 전시실 목록
 let mgArtRowsForRender = []; // renderMgRooms()에 마지막으로 넘긴 작품 배열 (순서 변경 후 재렌더링에 사용)
@@ -2670,8 +2833,10 @@ async function loadExhibitionsList() {
   currentMgExhibitionId = null;
 
   try {
+    // RLS상 다른 교사의 "현재 전시"도 조회되므로(방문자 공개용), 관리 화면에서는 내 전시만 걸러냄
     const { data, error } = await supabaseClient
-      .from("exhibitions").select("id, title, grade, class, created_at")
+      .from("exhibitions").select("id, title, grade, class, created_at, is_active")
+      .eq("owner_id", currentTeacher.user_id)
       .order("created_at", { ascending:false });
     if (error) throw error;
 
@@ -2680,14 +2845,11 @@ async function loadExhibitionsList() {
       opt.value = ex.id;
       const meta = [ex.grade ? `${ex.grade}학년` : null, ex.class || null].filter(Boolean).join(" ");
       const label = meta ? `${ex.title} (${meta})` : ex.title;
-      opt.textContent = label;
+      opt.textContent = ex.is_active ? `⭐ ${label} (현재 전시 중)` : label;
       select.appendChild(opt);
     });
-    // 정렬 기준(created_at 최신순)의 맨 앞이 곧 방문자에게 실제로 보여지는 전시와 같다
-    currentLiveExhibitionId = (data && data.length) ? data[0].id : null;
-    if (select.options.length > 1) {
-      select.options[1].textContent = "⭐ " + select.options[1].textContent + " (현재 전시 중)";
-    }
+    const live = (data || []).find(ex => ex.is_active);
+    currentLiveExhibitionId = live ? live.id : null;
 
     if (prevValue && [...select.options].some(o => o.value === prevValue)) {
       select.value = prevValue;
@@ -2736,13 +2898,8 @@ document.getElementById("adminMgSetActiveBtn").addEventListener("click", async (
   statusEl.style.color = "";
 
   try {
-    // 방문자 화면(loadArtworksData)은 created_at이 가장 최근인 전시를 그대로 보여주므로,
-    // 이 전시의 created_at을 지금 시각으로 갱신해 "가장 최근 전시"로 만든다. 테이블 구조를
-    // 새로 바꾸지 않고도 어떤 전시든 다시 "현재 전시장"으로 되돌릴 수 있는 방법이다.
-    const { error } = await supabaseClient
-      .from("exhibitions")
-      .update({ created_at: new Date().toISOString() })
-      .eq("id", currentMgExhibitionId);
+    // 내 전시 중 이 전시만 is_active=true로 (나머지 내 전시는 자동으로 false, DB 함수에서 처리)
+    const { error } = await supabaseClient.rpc("set_active_exhibition", { p_ex: currentMgExhibitionId });
     if (error) throw error;
 
     const savedId = currentMgExhibitionId;
