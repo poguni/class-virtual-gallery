@@ -6,15 +6,33 @@
 
 ```
 (리포지토리 루트)
-├── index.html                      ← 메인 앱 (구 Class-Virtual-Gallery_v5.html)
-└── assets/
-    ├── gallery_background_pc.jpg
-    └── gallery_background_mobile.jpg
+├── index.html              ← 화면 구조(HTML)만. CSS·JS 파일을 불러옴
+├── css/
+│   └── style.css           ← 모든 화면 디자인
+├── js/                     ← 아래 순서대로 불러옴 (순서를 바꾸면 안 됨)
+│   ├── auth.js             ← Supabase 연결, 로그인, 교사 승인 확인, QR코드
+│   ├── demo-data.js        ← 데모(더미) 작품
+│   ├── gallery-data.js     ← 전시·좋아요·댓글 불러오기
+│   ├── scene.js            ← 3D 전시장 (로비·복도·전시실·조명·작품 배치)
+│   ├── controls.js         ← 이동, 벽 충돌, 모바일 조이스틱
+│   ├── viewer.js           ← 화면 갱신 루프, 시작 화면, 작품 창, 좋아요·댓글
+│   ├── admin-upload.js     ← 새 전시 만들기, 교사 승인 탭
+│   ├── admin-manage.js     ← 기존 전시 관리, 기존 전시에 작품 추가
+│   └── report.js           ← 감상 결과 리포트
+├── assets/
+│   ├── gallery_background_pc.jpg
+│   └── gallery_background_mobile.jpg
+├── supabase/               ← DB 마이그레이션·되돌리기 SQL (배포와 무관, 기록용)
+└── docs/                   ← 개발 보고서
 ```
 
-- `index.html`은 코드 안에서 배경 이미지를 `assets/gallery_background_pc.jpg`,
-  `assets/gallery_background_mobile.jpg` 상대 경로로 불러옵니다. 따라서 **이 폴더
-  구조(같은 폴더에 index.html + assets/) 그대로** 업로드해야 배경이 정상적으로 보입니다.
+- JS 파일들은 일반 `<script>`로 불러와 **전역 변수를 함께 씁니다.** 앞 파일에서 만든
+  변수·함수를 뒤 파일이 쓰므로 `index.html` 안의 불러오는 순서를 지켜 주세요.
+- `css/style.css`는 배경 이미지를 `../assets/...` 상대 경로로 불러옵니다. **이 폴더
+  구조 그대로** 업로드해야 배경이 정상적으로 보입니다.
+- `index.html`에서 CSS·JS를 불러오는 주소 끝의 `?v=날짜`는 브라우저 캐시 방지용입니다.
+  CSS나 JS를 고쳐 배포할 때는 이 날짜를 새로 바꿔 주세요. 그래야 이용자 브라우저가
+  예전 파일 대신 새 파일을 받습니다.
 - GitHub Pages는 저장소에 `index.html`이 있으면 그 파일을 자동으로 첫 화면으로
   서비스하므로, 파일명을 반드시 `index.html`로 유지해 주세요.
 
@@ -22,7 +40,7 @@
 
 1. GitHub에서 새 저장소 생성 (예: `class-gallery`) — Public/Private 아무거나 가능
    (Private이어도 GitHub Pages는 정상 동작합니다. 무료 계정은 Public 권장)
-2. 이 폴더(`index.html`, `assets/` 전체)를 저장소 루트에 그대로 업로드
+2. 이 폴더(`index.html`, `css/`, `js/`, `assets/` 전체)를 저장소 루트에 그대로 업로드
    - GitHub 웹에서 "Add file → Upload files"로 드래그해도 되고,
      기존에 쓰시던 방식대로 `git add . && git commit && git push`도 가능합니다
 3. 저장소 **Settings → Pages** 이동
