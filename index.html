@@ -311,6 +311,13 @@
     letter-spacing:0.5px; transition:all .15s ease;
   }
   #adminOpenBtn:hover { background:rgba(255,222,170,0.12); }
+  #startLogoutBtn {
+    margin-top:10px; display:none;
+    background:rgba(20,14,8,0.55); border:1px solid rgba(255,222,170,0.25); color:#f0dcb8;
+    padding:7px 18px; border-radius:18px; font-size:13.5px; font-weight:600; cursor:pointer;
+    transition:all .15s ease;
+  }
+  #startLogoutBtn:hover { background:rgba(20,14,8,0.75); color:#fff8ec; }
 
   /* ---------- 교사용 업로드 관리자 화면 ---------- */
   #adminScreen {
@@ -493,6 +500,7 @@
   <div class="sub">CLASS VIRTUAL GALLERY</div>
   <button id="enterBtn">전시장 입장하기</button>
   <button id="adminOpenBtn" type="button">🛠 교사용 업로드 관리자</button>
+  <button id="startLogoutBtn" type="button">🔓 로그아웃</button>
   <div id="guide">
     <div class="device-block">
       <span class="device-label pc">PC</span>
@@ -862,6 +870,7 @@ function showGalleryEntry(asTeacher) {
   authScreenEl.style.display = "none";
   startScreenEl.style.display = "flex";
   document.getElementById("adminOpenBtn").style.display = isTeacher ? "inline-block" : "none";
+  document.getElementById("startLogoutBtn").style.display = isTeacher ? "inline-block" : "none";
 }
 
 authForm.addEventListener("submit", async (e) => {
@@ -2208,8 +2217,8 @@ document.getElementById("enterBtn").addEventListener("click", () => {
   if (isTeacher) document.getElementById("logoutBtn").style.display = "block";
 });
 
-document.getElementById("logoutBtn").addEventListener("click", async () => {
-  const btn = document.getElementById("logoutBtn");
+// 교사 로그아웃 — 전시장 안(logoutBtn)과 시작 화면(startLogoutBtn) 두 버튼이 함께 사용
+async function logoutTeacher(btn) {
   btn.disabled = true;
   try {
     await supabaseClient.auth.signOut();
@@ -2219,7 +2228,9 @@ document.getElementById("logoutBtn").addEventListener("click", async () => {
   // 지금 화면의 전시는 교사 기준(숨김 댓글 포함)으로 불러온 것이므로, 새로고침해서
   // 방문자 기준으로 다시 불러온 로그인 화면으로 복귀 (게스트로 재입장하거나 다시 로그인 가능)
   location.reload();
-});
+}
+document.getElementById("logoutBtn").addEventListener("click", (e) => logoutTeacher(e.currentTarget));
+document.getElementById("startLogoutBtn").addEventListener("click", (e) => logoutTeacher(e.currentTarget));
 
 let currentArtworkIndex = null;
 const modalOverlay = document.getElementById("modalOverlay");
