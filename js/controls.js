@@ -45,6 +45,8 @@ function isWalkable(x, z) {
   const inAny = (px, pz) => SEGMENTS.some(seg =>
     px >= seg.minX - pad && px <= seg.maxX + pad && pz >= seg.minZ - pad && pz <= seg.maxZ + pad);
   const r = PLAYER_RADIUS;
+  // 전시실 소품(props.js)과 몸이 겹치면 서 있을 수 없음
+  if (PROP_OBSTACLES.some(o => x + r > o.minX && x - r < o.maxX && z + r > o.minZ && z - r < o.maxZ)) return false;
   return inAny(x - r, z - r) && inAny(x + r, z - r) && inAny(x - r, z + r) && inAny(x + r, z + r);
 }
 
