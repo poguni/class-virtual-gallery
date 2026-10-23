@@ -69,13 +69,17 @@ const WING_ROOM_OUT = 10;                       // 전시실이 복도 안쪽 �
 
 function buildFloorCeil(minX,maxX,minZ,maxZ,h,floorMaterial,ceilMaterial) {
   const w = maxX-minX, d = maxZ-minZ;
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(w,d), floorMaterial || floorMat);
+  const floorGeo = new THREE.PlaneGeometry(w,d);
+  applyTileUV(floorGeo, w, d, floorMaterial); // 테마 무늬를 바닥 크기에 맞춰 반복 (themes.js)
+  const floor = new THREE.Mesh(floorGeo, floorMaterial || floorMat);
   floor.rotation.x = -Math.PI/2;
   floor.position.set((minX+maxX)/2, 0, (minZ+maxZ)/2);
   floor.receiveShadow = true;
   scene.add(floor);
 
-  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(w,d), ceilMaterial || ceilMat);
+  const ceilGeo = new THREE.PlaneGeometry(w,d);
+  applyTileUV(ceilGeo, w, d, ceilMaterial);
+  const ceil = new THREE.Mesh(ceilGeo, ceilMaterial || ceilMat);
   ceil.rotation.x = Math.PI/2;
   ceil.position.set((minX+maxX)/2, h, (minZ+maxZ)/2);
   scene.add(ceil);
@@ -86,6 +90,7 @@ buildFloorCeil(LOBBY.minX,LOBBY.maxX,LOBBY.minZ,LOBBY.maxZ,LOBBY.h);
 function wallSeg(x1,z1,x2,z2,h,material) {
   const len = Math.hypot(x2-x1, z2-z1);
   const geo = new THREE.BoxGeometry(len, h, 0.25);
+  applyTileUV(geo, len, h, material); // 벽 길이가 달라도 무늬 크기가 같게 (themes.js)
   const wall = new THREE.Mesh(geo, material || wallMat);
   wall.position.set((x1+x2)/2, h/2, (z1+z2)/2);
   wall.rotation.y = -Math.atan2(z2-z1, x2-x1);
@@ -546,6 +551,15 @@ function placeArtworksInScene(list, bounds, indexOffset, roomIndex, theme) {
   const step = perSide > 1 ? (roomZEnd - roomZStart) / (perSide - 1) : 0;
   const lightsBucket = ROOM_LIGHT_GROUPS[roomIndex] = ROOM_LIGHT_GROUPS[roomIndex] || [];
 
+  // 밝은 테마의 보조광: 방 가운데 천장 아래 하나 (그림자 없음). 작품 조명과 같이 "가까운 방만 켜기" 대상
+  if (theme && theme.fill) {
+    const fill = new THREE.PointLight(theme.fill.color, theme.fill.intensity, theme.fill.distance, 2);
+    fill.position.set((bounds.minX + bounds.maxX) / 2, bounds.h - 0.7, (bounds.minZ + bounds.maxZ) / 2);
+    fill.userData.baseIntensity = theme.fill.intensity;
+    scene.add(fill);
+    lightsBucket.push(fill);
+  }
+
   list.forEach((art, i) => {
     const side = i < perSide ? "left" : "right";
     const idx = i % perSide;
@@ -582,8 +596,8 @@ function updateRoomLighting(seg) {
       // 다시 넣는 방식으로 바꿔 실제로 계산해야 할 조명 수 자체를 줄인다.
       if (near && !spot.parent) scene.add(spot);
       if (!near && spot.parent) scene.remove(spot);
-      spot.intensity = near ? 3.2 : 0;
-      spot.castShadow = isCurrent;
+      spot.intensity = near ? (spot.userData.baseIntensity ?? 3.2) : 0; // 작품 스포트라이트 3.2, 테마 보조광은 자기 밝기
+      if (spot.isSpotLight) spot.castShadow = isCurrent;                 // 그림자는 작품 스포트라이트만
     });
   });
 }
