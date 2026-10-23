@@ -504,18 +504,12 @@ function mountArtwork(art, index, ctx) {
     scene.add(label);
 
     // 작품 전용 스포트라이트 (공간은 어둡고 작품만 밝게)
-    const spot = new THREE.SpotLight(0xffdca8, 3.2, 8, Math.PI/8, 0.5, 1.4);
-    spot.position.set(x + (side==="left"?1.1:-1.1), 4.5, z + 0.3);
-    spot.target = pic;
-    spot.castShadow = true;
-    spot.shadow.mapSize.set(768,768);
-    spot.shadow.bias = -0.001;
-    scene.add(spot);
-    scene.add(spot.target);
-    // 전시실이 여러 개로 늘어나면 스포트라이트(특히 그림자)가 한꺼번에 너무 많아져
-    // 오히려 작품이 제대로 안 보이는 문제가 생길 수 있어, 방 단위로 묶어뒀다가
-    // 지금 있는 방(및 바로 옆방) 것만 켜고 나머지는 꺼두는 방식으로 관리한다 (updateRoomLighting 참고)
-    if (ctx.lightsBucket) ctx.lightsBucket.push(spot);
+    // 조명을 작품마다 만들지 않고 "조명 자리"만 방 단위로 기록해 두면,
+    // updateRoomLighting이 지금 있는 방(및 바로 옆방) 자리에 조명 풀의 조명을 옮겨 단다
+    if (ctx.lightsBucket) {
+      ctx.lightsBucket.push({ kind:"spot", position: new THREE.Vector3(x + (side==="left"?1.1:-1.1), 4.5, z + 0.3), target: pic.position });
+      if (LIGHT_POOL) LIGHT_POOL.dirty = true; // 이미지가 늦게 로드되어 자리가 새로 생긴 경우 다시 배정
+    }
   }
 
   if (art.imageUrl) {
@@ -542,8 +536,15 @@ function mountArtwork(art, index, ctx) {
   }
 }
 
-// 전시실 인덱스별 그 방 작품 스포트라이트 목록 (방 단위 밝기/그림자 관리용, updateRoomLighting에서 사용)
+// 전시실 인덱스별 그 방 조명 자리 목록 ({kind:"spot"|"fill", ...}, updateRoomLighting에서 사용)
 const ROOM_LIGHT_GROUPS = {};
+// 전시실 인덱스별 조명 자리 개수 (작품 이미지는 비동기로 로드되므로 조명 풀 크기를 정하려고 미리 세어 둠)
+const ROOM_LIGHT_COUNTS = {};
+// 조명 풀: 씬 안의 조명 개수가 바뀌면 three.js가 모든 재질의 셰이더를 다시 컴파일해
+// 방을 옮길 때마다 화면이 1~3초 멈췄다. 그래서 필요한 최대 개수만큼 조명을 처음에 한 번 만들어 두고,
+// 방을 옮길 때는 조명의 위치만 바꾸고 쓰지 않는 조명은 밝기 0으로 멀리 치워 둔다.
+let LIGHT_POOL = null;
+const LIGHT_PARK_Y = -50; // 쓰지 않는 조명을 치워 두는 높이 (바닥 아래라 아무것도 비추지 않음)
 
 // bounds: 이 작품들이 걸릴 전시실의 {minX,maxX,minZ,maxZ} / indexOffset: 전체 artworks 배열에서의 시작 인덱스
 // roomIndex: 이 전시실이 SEGMENTS/ROOM_LIGHT_GROUPS에서 쓰는 방 번호(0부터 시작) / theme: 이 전시실 테마(액자 재질)
@@ -552,14 +553,12 @@ function placeArtworksInScene(list, bounds, indexOffset, roomIndex, theme) {
   const perSide = Math.max(1, Math.ceil(list.length / 2));
   const step = perSide > 1 ? (roomZEnd - roomZStart) / (perSide - 1) : 0;
   const lightsBucket = ROOM_LIGHT_GROUPS[roomIndex] = ROOM_LIGHT_GROUPS[roomIndex] || [];
+  ROOM_LIGHT_COUNTS[roomIndex] = { spot: list.length, fill: theme && theme.fill ? 1 : 0 };
 
   // 밝은 테마의 보조광: 방 가운데 천장 아래 하나 (그림자 없음). 작품 조명과 같이 "가까운 방만 켜기" 대상
   if (theme && theme.fill) {
-    const fill = new THREE.PointLight(theme.fill.color, theme.fill.intensity, theme.fill.distance, 2);
-    fill.position.set((bounds.minX + bounds.maxX) / 2, bounds.h - 0.7, (bounds.minZ + bounds.maxZ) / 2);
-    fill.userData.baseIntensity = theme.fill.intensity;
-    scene.add(fill);
-    lightsBucket.push(fill);
+    lightsBucket.push({ kind:"fill", color: theme.fill.color, intensity: theme.fill.intensity, distance: theme.fill.distance,
+      position: new THREE.Vector3((bounds.minX + bounds.maxX) / 2, bounds.h - 0.7, (bounds.minZ + bounds.maxZ) / 2) });
   }
 
   list.forEach((art, i) => {
@@ -582,26 +581,96 @@ function placeArtworksInScene(list, bounds, indexOffset, roomIndex, theme) {
 // 작품 스포트라이트만 켜고 그림자는 지금 있는 방 것만 드리우게 한다.
 // → 전시실이 아무리 많아져도 동시에 켜지는 조명·그림자 수가 항상 일정하게 유지되어
 //   Phase 4 이전(전시실 1개)과 똑같이 작품이 밝고 또렷하게 보인다.
+// 방 사이 거리는 SEGMENTS 상 칸 수로 잰다 (두 칸 이내 = 가까운 방)
+function isNearSegment(roomSegIdx, curSegIdx) {
+  return roomSegIdx !== undefined && curSegIdx >= 0 && Math.abs(roomSegIdx - curSegIdx) <= 2;
+}
+
+// 모든 전시실 배치가 끝난 뒤 한 번 호출: 어느 위치에서든 필요한 최대 조명 수만큼 조명 풀을 만든다
+function buildLightPool() {
+  const roomSegIdx = {};
+  SEGMENTS.forEach((s, i) => { if (s.type === "room") roomSegIdx[s.roomIndex] = i; });
+  let spotN = 0, fillN = 0, shadowN = 0;
+  SEGMENTS.forEach((_, c) => {
+    let spots = 0, fills = 0;
+    Object.keys(ROOM_LIGHT_COUNTS).forEach((key) => {
+      if (!isNearSegment(roomSegIdx[key], c)) return;
+      spots += ROOM_LIGHT_COUNTS[key].spot; fills += ROOM_LIGHT_COUNTS[key].fill;
+    });
+    spotN = Math.max(spotN, spots); fillN = Math.max(fillN, fills);
+  });
+  Object.values(ROOM_LIGHT_COUNTS).forEach((c) => { shadowN = Math.max(shadowN, c.spot); });
+
+  // 앞쪽 shadowN개는 그림자를 드리우는 자리 (지금 있는 방의 작품 몫)
+  const spots = [];
+  for (let i = 0; i < spotN; i++) {
+    const spot = new THREE.SpotLight(0xffdca8, 0, 8, Math.PI/8, 0.5, 1.4);
+    if (i < shadowN) {
+      spot.castShadow = true;
+      spot.shadow.mapSize.set(768,768);
+      spot.shadow.bias = -0.001;
+    }
+    scene.add(spot);
+    scene.add(spot.target);
+    spots.push(spot);
+  }
+  const fills = [];
+  for (let i = 0; i < fillN; i++) {
+    const fill = new THREE.PointLight(0xffffff, 0, 1, 2);
+    scene.add(fill);
+    fills.push(fill);
+  }
+  LIGHT_POOL = { spots, fills, shadowN, roomSegIdx, segIdx: null, dirty: true };
+}
+
+function placeSpot(spot, spec) {
+  if (!spec) {
+    spot.intensity = 0;
+    spot.position.set(0, LIGHT_PARK_Y, 0);
+    spot.target.position.set(0, LIGHT_PARK_Y - 1, 0);
+    return;
+  }
+  spot.intensity = 3.2;
+  spot.position.copy(spec.position);
+  spot.target.position.copy(spec.target);
+}
+
+function placeFill(fill, spec) {
+  if (!spec) {
+    fill.intensity = 0;
+    fill.position.set(0, LIGHT_PARK_Y, 0);
+    return;
+  }
+  fill.color.setHex(spec.color);
+  fill.intensity = spec.intensity;
+  fill.distance = spec.distance;
+  fill.position.copy(spec.position);
+}
+
+// 지금 있는 방의 작품 조명은 그림자 자리에, 옆방 조명은 남은 자리에 배정한다.
+// 조명 개수와 그림자 개수가 항상 같으므로 방을 옮겨도 셰이더를 다시 컴파일하지 않는다.
 function updateRoomLighting(seg) {
   const curSegIdx = seg ? SEGMENTS.indexOf(seg) : -1;
+  if (!LIGHT_POOL || (curSegIdx === LIGHT_POOL.segIdx && !LIGHT_POOL.dirty)) return;
+  LIGHT_POOL.segIdx = curSegIdx;
+  LIGHT_POOL.dirty = false;
 
+  const current = [], others = [], fillSpecs = [];
   Object.keys(ROOM_LIGHT_GROUPS).forEach((key) => {
-    const roomIdx = Number(key);
-    const roomSeg = SEGMENTS.find(s => s.type === "room" && s.roomIndex === roomIdx);
-    const roomSegIdx = roomSeg ? SEGMENTS.indexOf(roomSeg) : -1;
-    const near = roomSegIdx >= 0 && curSegIdx >= 0 && Math.abs(roomSegIdx - curSegIdx) <= 2;
-    const isCurrent = roomSegIdx === curSegIdx;
-    ROOM_LIGHT_GROUPS[roomIdx].forEach((spot) => {
-      // 단순히 밝기(intensity)만 0으로 낮추면 조명 자체는 여전히 씬에 남아있어 렌더러가
-      // 매 프레임 그 조명까지 포함해서 셰이더 계산을 해야 한다. 전시실이 많아질수록
-      // 이 계산량이 그대로 누적되므로, 멀리 있는 조명은 아예 씬에서 빼뒀다가 가까워지면
-      // 다시 넣는 방식으로 바꿔 실제로 계산해야 할 조명 수 자체를 줄인다.
-      if (near && !spot.parent) scene.add(spot);
-      if (!near && spot.parent) scene.remove(spot);
-      spot.intensity = near ? (spot.userData.baseIntensity ?? 3.2) : 0; // 작품 스포트라이트 3.2, 테마 보조광은 자기 밝기
-      if (spot.isSpotLight) spot.castShadow = isCurrent;                 // 그림자는 작품 스포트라이트만
+    const roomSegIdx = LIGHT_POOL.roomSegIdx[key];
+    if (!isNearSegment(roomSegIdx, curSegIdx)) return;
+    ROOM_LIGHT_GROUPS[key].forEach((spec) => {
+      if (spec.kind === "fill") fillSpecs.push(spec);
+      else (roomSegIdx === curSegIdx ? current : others).push(spec);
     });
   });
+
+  const { spots, fills, shadowN } = LIGHT_POOL;
+  // 남는 자리는 그림자 없는 조명부터 쓰고, 그래도 모자라면 비어 있는 그림자 자리를 쓴다
+  const freeSlots = spots.slice(shadowN).concat(spots.slice(current.length, shadowN));
+  spots.slice(0, current.length).forEach((spot, i) => placeSpot(spot, current[i]));
+  freeSlots.forEach((spot, i) => placeSpot(spot, others[i]));
+  fills.forEach((fill, i) => placeFill(fill, fillSpecs[i]));
 }
 
 // Supabase에서 방 단위 작품 데이터를 비동기로 불러온 뒤, 전시실 개수만큼 복도·전시실을 이어 붙이고
@@ -616,4 +685,7 @@ window.artworksLoadPromise = loadArtworksData().then((roomsData) => {
     artworks = artworks.concat(room.artworks);
     placeArtworksInScene(room.artworks, room.bounds, offset, room.roomIndex, room.theme);
   });
+  buildLightPool();
+  // 멀리 있는 방의 재질도 미리 컴파일해 두어 처음 들어설 때 멈추지 않게 한다
+  renderer.compile(scene, camera);
 });
