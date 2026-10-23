@@ -1959,7 +1959,32 @@ function findSegment(x, z) {
   return null;
 }
 
-function clampPlayerPosition(pos) {
+// 걸을 수 있는 공간 = SEGMENTS 사각형들의 합집합 (벽은 정확히 이 경계에 서 있음).
+// 몸 폭(PLAYER_RADIUS)만큼 떨어진 네 모서리 점이 모두 어떤 세그먼트 안에 있어야 서 있을 수 있다.
+// — 위의 x 제한만으로는 문 옆 앞뒤 벽(전시실 앞/뒷벽, 연결 통로 가운데 벽)을 막지 못해
+//   벽을 뚫고 빈 공간으로 들어가던 문제를 막기 위한 검사
+const PLAYER_RADIUS = 0.3;
+function isWalkable(x, z) {
+  const pad = 0.02;
+  const inAny = (px, pz) => SEGMENTS.some(seg =>
+    px >= seg.minX - pad && px <= seg.maxX + pad && pz >= seg.minZ - pad && pz <= seg.maxZ + pad);
+  const r = PLAYER_RADIUS;
+  return inAny(x - r, z - r) && inAny(x + r, z - r) && inAny(x - r, z + r) && inAny(x + r, z + r);
+}
+
+// prev: 이동 전 위치. 이동한 위치가 벽 너머(빈 공간)면 벽을 따라 미끄러지도록
+// z만 되돌리거나 x만 되돌려 보고, 둘 다 안 되면 제자리에 머문다.
+function clampPlayerPosition(pos, prev) {
+  clampToSegment(pos);
+  if (prev && SEGMENTS.length > 1 && !isWalkable(pos.x, pos.z) && isWalkable(prev.x, prev.z)) {
+    if (isWalkable(pos.x, prev.z)) pos.z = prev.z;
+    else if (isWalkable(prev.x, pos.z)) pos.x = prev.x;
+    else { pos.x = prev.x; pos.z = prev.z; }
+  }
+  return pos;
+}
+
+function clampToSegment(pos) {
   let seg = findSegment(pos.x, pos.z);
   if (!seg) seg = lastKnownSegment;
   if (!seg) return pos; // 데이터 로드 전(방/복도가 아직 생성되지 않은 순간)에는 이동만 허용
@@ -2250,7 +2275,7 @@ function animate() {
     const newPos = camera.position.clone();
     newPos.x += dir.x * speed * dt;
     newPos.z += dir.z * speed * dt;
-    clampPlayerPosition(newPos);
+    clampPlayerPosition(newPos, camera.position);
     camera.position.x = newPos.x;
     camera.position.z = newPos.z;
 
