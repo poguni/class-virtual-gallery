@@ -34,53 +34,143 @@
     font-size:15px; color:#f0dcb8; margin-bottom:26px; letter-spacing:3px; font-weight:600;
     text-shadow:0 2px 10px rgba(0,0,0,0.5);
   }
-  #enterBtn {
-    background:linear-gradient(135deg, #f2b768, #d9813d);
-    color:#2b1a0d; border:none; padding:16px 46px;
-    font-size:17px; font-weight:800; border-radius:32px; cursor:pointer;
-    letter-spacing:1.5px; box-shadow:0 10px 26px rgba(0,0,0,0.4);
-    transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
+  /* ---------- 시작 화면: 미술관 입장권 패널 ----------
+     배경 이미지 왼쪽 위에 제목이 이미 그려져 있으므로 패널은 PC에서 오른쪽, 모바일에서 아래쪽에 둔다.
+     색은 배경에서 따옴: 미술관 벽(paper), 기둥의 파랑·노랑 띠(blue·mustard), 마룻바닥(oak) */
+  #startScreen {
+    --paper:#FBF8F3; --ink:#33291F; --muted:#6F6253; --blue:#3D6A99; --blue-deep:#2C527B;
+    --mustard:#E7B33F; --oak:#C68A52; --oak-deep:#94602E;
+    align-items:flex-end; text-align:left;
+    padding:32px clamp(24px, 6vw, 88px);
+    background:
+      linear-gradient(90deg, rgba(20,14,8,0) 40%, rgba(20,14,8,0.3) 100%),
+      url('assets/gallery_background_pc.jpg') left top/cover no-repeat; /* 화면 비율이 달라도 왼쪽 위 제목은 잘리지 않게 */
   }
-  #enterBtn:hover {
-    background:linear-gradient(135deg, #ffc57e, #e8944e);
-    transform:translateY(-2px) scale(1.02);
-    box-shadow:0 12px 30px rgba(0,0,0,0.5);
+  .ticket {
+    width:min(400px, 100%); word-break:keep-all; /* 한국어는 낱말 단위로 줄바꿈 */
+    filter:drop-shadow(0 18px 36px rgba(30,20,10,0.35));
+    animation:ticketIn .45s ease-out both;
   }
-  #guide {
-    margin-top:28px; font-size:13.5px; color:#f4ead6; line-height:1.7;
-    background:rgba(20,14,9,0.5); backdrop-filter:blur(4px);
-    border:1px solid rgba(255,222,170,0.2);
-    padding:18px 26px; border-radius:14px; max-width:420px;
-  }
-  #guide .device-label {
-    display:block; font-weight:800; letter-spacing:0.5px; margin:0 0 4px;
-  }
-  #guide .device-label.pc { color:#7fd8ff; }
-  #guide .device-label.mobile { color:#ffd166; }
-  #guide .device-block { margin-bottom:14px; }
-  #guide .device-block:last-child { margin-bottom:0; }
-  #guide b { font-weight:700; color:inherit; }
+  @keyframes ticketIn { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
+  @media (prefers-reduced-motion: reduce) { .ticket { animation:none; } }
 
-  /* ---------- 시작 화면 QR코드(학부모 스캔용) ---------- */
+  /* 본체: 아래 양쪽 모서리에 반원 홈 (뜯는 부분과 맞물림) */
+  .ticket-main {
+    background:var(--paper); color:var(--ink);
+    border-radius:20px 20px 0 0; padding:28px 30px 24px;
+    -webkit-mask:
+      radial-gradient(circle 11px at 0 100%, #0000 98%, #000) left / 51% 100% no-repeat,
+      radial-gradient(circle 11px at 100% 100%, #0000 98%, #000) right / 51% 100% no-repeat;
+            mask:
+      radial-gradient(circle 11px at 0 100%, #0000 98%, #000) left / 51% 100% no-repeat,
+      radial-gradient(circle 11px at 100% 100%, #0000 98%, #000) right / 51% 100% no-repeat;
+  }
+  /* QR을 못 그려 뜯는 부분이 숨겨지면 본체만 온전한 카드로 */
+  .ticket:has(#qrEntryBox.hidden) .ticket-main { border-radius:20px; -webkit-mask:none; mask:none; }
+
+  #startScreen .ticket .sub {
+    font-size:12px; letter-spacing:2.5px; font-weight:700; color:var(--oak-deep);
+    margin:0 0 6px; text-shadow:none;
+  }
+  #startScreen .ticket h1 {
+    font-size:28px; font-weight:800; letter-spacing:-0.5px; line-height:1.25;
+    color:var(--ink); text-shadow:none; margin:0 0 22px;
+  }
+
+  /* 입장 버튼: 배경 기둥처럼 왼쪽에 노란 띠 */
+  #enterBtn {
+    display:block; width:100%; padding:16px 20px;
+    background:linear-gradient(90deg, var(--mustard) 0 7px, var(--blue) 7px);
+    color:#fff; border:none; border-radius:14px; cursor:pointer;
+    font-size:17px; font-weight:800; letter-spacing:0.5px;
+    box-shadow:inset 0 -3px 0 var(--blue-deep);
+    transition:transform .15s ease, filter .15s ease;
+  }
+  #enterBtn:hover { filter:brightness(1.08); transform:translateY(-1px); }
+  #enterBtn:active { transform:translateY(1px); box-shadow:inset 0 -1px 0 var(--blue-deep); }
+
+  .ticket-actions { display:flex; align-items:center; gap:8px; margin-top:10px; }
+  #adminOpenBtn {
+    display:none; flex:1;
+    background:transparent; border:1.5px solid rgba(51,41,31,0.2); color:var(--ink);
+    padding:10px 14px; border-radius:12px; font-size:14px; font-weight:700; cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  #adminOpenBtn:hover { border-color:var(--ink); background:rgba(51,41,31,0.04); }
+  #startLogoutBtn {
+    display:none; flex:none;
+    background:transparent; border:none; color:var(--muted);
+    padding:10px 8px; font-size:13.5px; font-weight:600; cursor:pointer;
+  }
+  #startLogoutBtn:hover { color:var(--ink); text-decoration:underline; text-underline-offset:3px; }
+
+  /* 조작 안내: 기기 이름 | 설명 두 줄 표 */
+  #guide {
+    margin-top:22px; padding-top:18px; border-top:1px solid rgba(198,138,82,0.35);
+    display:grid; gap:10px; font-size:13.5px; line-height:1.65; color:var(--muted);
+  }
+  #guide .device-block { display:grid; grid-template-columns:48px 1fr; gap:10px; align-items:baseline; }
+  #guide .device-label { font-size:12.5px; font-weight:800; }
+  #guide .device-label.pc { color:var(--blue); }
+  #guide .device-label.mobile { color:var(--oak-deep); }
+  #guide br { display:none; } /* 좁은 패널에서는 문장이 자연스럽게 줄바꿈되도록 */
+
+  /* 뜯는 부분(QR): 위쪽 양 모서리 반원 홈 + 절취선 */
   #qrEntryBox {
-    margin-top:18px; display:flex; flex-direction:column; align-items:center; gap:9px;
-    background:rgba(20,14,9,0.5); backdrop-filter:blur(4px);
-    border:1px solid rgba(255,222,170,0.2);
-    padding:16px 22px 14px; border-radius:14px; max-width:420px;
+    position:relative; display:flex; align-items:center; gap:16px;
+    background:var(--paper); color:var(--ink);
+    border-radius:0 0 20px 20px; padding:20px 30px 22px;
+    -webkit-mask:
+      radial-gradient(circle 11px at 0 0, #0000 98%, #000) left / 51% 100% no-repeat,
+      radial-gradient(circle 11px at 100% 0, #0000 98%, #000) right / 51% 100% no-repeat;
+            mask:
+      radial-gradient(circle 11px at 0 0, #0000 98%, #000) left / 51% 100% no-repeat,
+      radial-gradient(circle 11px at 100% 0, #0000 98%, #000) right / 51% 100% no-repeat;
+  }
+  #qrEntryBox::before {
+    content:""; position:absolute; top:0; left:18px; right:18px;
+    border-top:2px dashed rgba(198,138,82,0.55);
   }
   #qrEntryBox.hidden { display:none; }
-  .qr-canvas-wrap { background:#fff8ec; padding:8px; border-radius:10px; line-height:0; }
-  .qr-canvas-wrap img, .qr-canvas-wrap canvas { display:block; width:104px; height:104px; }
-  .qr-caption { font-size:12.5px; color:#f0dcb8; line-height:1.6; text-align:center; }
-  #qrCopyLinkBtn {
-    margin-top:2px; background:transparent; border:1px solid rgba(255,222,170,0.35);
-    color:#f0dcb8; font-size:12px; font-weight:700; padding:6px 14px;
-    border-radius:20px; cursor:pointer; transition:background .15s ease;
+  .qr-canvas-wrap {
+    flex:none; background:#fff; padding:6px; border-radius:8px; line-height:0;
+    border:1px solid rgba(51,41,31,0.12);
   }
-  #qrCopyLinkBtn:hover { background:rgba(255,222,170,0.12); }
-  @media (max-width: 640px) {
-    #qrEntryBox { padding:12px 16px 11px; }
-    .qr-canvas-wrap img, .qr-canvas-wrap canvas { width:88px; height:88px; }
+  .qr-canvas-wrap img, .qr-canvas-wrap canvas { display:block; width:96px; height:96px; }
+  .qr-side { display:flex; flex-direction:column; align-items:flex-start; gap:10px; }
+  .qr-caption { font-size:13px; line-height:1.6; color:var(--ink); text-align:left; }
+  #qrCopyLinkBtn {
+    background:transparent; border:1.5px solid rgba(61,106,153,0.4); color:var(--blue);
+    font-size:12.5px; font-weight:700; padding:6px 12px; border-radius:10px; cursor:pointer;
+    transition:background .15s ease;
+  }
+  #qrCopyLinkBtn:hover { background:rgba(61,106,153,0.08); }
+
+  #startScreen button:focus-visible { outline:3px solid var(--mustard); outline-offset:2px; }
+
+  /* 모바일: 배경 위쪽 제목을 피해 패널을 화면 아래에 붙임 */
+  @media (max-width: 640px), (pointer:coarse) and (hover:none) {
+    #startScreen {
+      align-items:center; justify-content:flex-start;
+      padding:max(18vh, 120px) 16px 20px; /* 위쪽 여백 = 배경 제목 영역 */
+      background:
+        linear-gradient(180deg, rgba(20,14,8,0) 45%, rgba(20,14,8,0.35) 100%),
+        url('assets/gallery_background_mobile.jpg') center top/cover no-repeat;
+    }
+    .ticket { width:min(440px, 100%); margin-top:auto; } /* 남는 공간만큼 아래로 */
+    /* 세로 화면: 이미지를 화면 너비에 맞춰 제목 양 끝이 잘리지 않게 하고, 아래 남는 부분은 마룻바닥 색으로 */
+    @media (orientation: portrait) {
+      #startScreen {
+        background:
+          linear-gradient(180deg, rgba(20,14,8,0) 45%, rgba(20,14,8,0.35) 100%),
+          url('assets/gallery_background_mobile.jpg') center top / 100% auto no-repeat,
+          #D9B98E;
+      }
+    }
+    .ticket-main { padding:24px 22px 20px; }
+    #qrEntryBox { padding:18px 22px 20px; }
+    #startScreen .ticket h1 { font-size:25px; margin-bottom:18px; }
+    .qr-canvas-wrap img, .qr-canvas-wrap canvas { width:84px; height:84px; }
   }
 
   /* ---------- 로그인 카드 ---------- */
@@ -303,22 +393,6 @@
     #commentSend { flex:1 1 100%; padding:11px 0; margin-top:2px; }
   }
 
-  /* ---------- 시작 화면 내 관리자 버튼 ---------- */
-  #adminOpenBtn {
-    margin-top:14px; display:none;
-    background:transparent; border:1px solid rgba(255,222,170,0.35); color:#f0dcb8;
-    padding:11px 26px; border-radius:24px; font-size:14.5px; font-weight:700; cursor:pointer;
-    letter-spacing:0.5px; transition:all .15s ease;
-  }
-  #adminOpenBtn:hover { background:rgba(255,222,170,0.12); }
-  #startLogoutBtn {
-    margin-top:10px; display:none;
-    background:rgba(20,14,8,0.55); border:1px solid rgba(255,222,170,0.25); color:#f0dcb8;
-    padding:7px 18px; border-radius:18px; font-size:13.5px; font-weight:600; cursor:pointer;
-    transition:all .15s ease;
-  }
-  #startLogoutBtn:hover { background:rgba(20,14,8,0.75); color:#fff8ec; }
-
   /* ---------- 교사용 업로드 관리자 화면 ---------- */
   #adminScreen {
     position:fixed; inset:0; z-index:55; display:none;
@@ -485,7 +559,8 @@
 
     <div class="auth-divider">또는</div>
 
-    <button id="googleLoginBtn" type="button">
+    <!-- Supabase에서 Google 로그인이 꺼져 있어 숨김 (켜면 style 속성만 지우면 다시 사용 가능) -->
+    <button id="googleLoginBtn" type="button" style="display:none;">
       <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" />
       Google로 로그인
     </button>
@@ -496,26 +571,35 @@
 
 <!-- 시작 화면 (로그인 또는 게스트 입장 이후 표시) -->
 <div id="startScreen">
-  <h1>우리 반 가상 미술관</h1>
-  <div class="sub">CLASS VIRTUAL GALLERY</div>
-  <button id="enterBtn">전시장 입장하기</button>
-  <button id="adminOpenBtn" type="button">🛠 교사용 업로드 관리자</button>
-  <button id="startLogoutBtn" type="button">🔓 로그아웃</button>
-  <div id="guide">
-    <div class="device-block">
-      <span class="device-label pc">PC</span>
-      W A S D 로 이동, 방향키(↑↓←→) 로 시선 이동,<br/>작품을 마우스로 클릭하면 감상
+  <!-- 미술관 입장권 모양 패널: 본체(입장·관리) + 뜯는 부분(QR) — 배경 왼쪽 위 제목을 가리지 않도록 PC는 오른쪽, 모바일은 아래쪽에 배치 -->
+  <div class="ticket">
+    <div class="ticket-main">
+      <div class="sub">CLASS VIRTUAL GALLERY</div>
+      <h1>우리 반 가상 미술관</h1>
+      <button id="enterBtn">전시장 입장하기</button>
+      <div class="ticket-actions">
+        <button id="adminOpenBtn" type="button">🛠 교사용 업로드 관리자</button>
+        <button id="startLogoutBtn" type="button">🔓 로그아웃</button>
+      </div>
+      <div id="guide">
+        <div class="device-block">
+          <span class="device-label pc">PC</span>
+          <span class="device-text">W A S D 로 이동, 방향키(↑↓←→) 로 시선 이동, <br/>작품을 마우스로 클릭하면 감상</span>
+        </div>
+        <div class="device-block">
+          <span class="device-label mobile">모바일</span>
+          <span class="device-text">화면 왼쪽 밑에 있는 조이스틱으로 이동, 화면 드래그로 <br/>시선 이동, 작품을 탭하여 감상</span>
+        </div>
+      </div>
     </div>
-    <div class="device-block">
-      <span class="device-label mobile">모바일</span>
-      화면 왼쪽 밑에 있는 조이스틱으로 이동, 화면 드래그로<br/>시선 이동, 작품을 탭하여 감상
-    </div>
-  </div>
 
-  <div id="qrEntryBox">
-    <div class="qr-canvas-wrap" id="qrCanvasWrap"></div>
-    <div class="qr-caption">📱 휴대폰으로 QR코드를 스캔하면<br/>같은 전시장으로 바로 접속할 수 있어요</div>
-    <button id="qrCopyLinkBtn" type="button">🔗 링크 복사</button>
+    <div id="qrEntryBox">
+      <div class="qr-canvas-wrap" id="qrCanvasWrap"></div>
+      <div class="qr-side">
+        <div class="qr-caption">📱 휴대폰으로 QR코드를 스캔하면<br/>같은 전시장으로 바로 접속할 수 있어요</div>
+        <button id="qrCopyLinkBtn" type="button">🔗 링크 복사</button>
+      </div>
+    </div>
   </div>
 </div>
 
