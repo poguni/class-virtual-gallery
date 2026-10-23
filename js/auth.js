@@ -102,8 +102,8 @@ function renderEntryQR() {
 }
 renderEntryQR();
 
-document.getElementById("qrCopyLinkBtn").addEventListener("click", async () => {
-  const btn = document.getElementById("qrCopyLinkBtn");
+// 공유 주소를 클립보드에 복사하고 버튼 글자로 결과를 알려줌 — 시작 화면 QR 옆, 관리자 화면 "우리 반 링크"가 함께 사용
+async function copyShareUrl(btn) {
   const shareUrl = getShareUrl();
   try {
     await navigator.clipboard.writeText(shareUrl);
@@ -114,7 +114,8 @@ document.getElementById("qrCopyLinkBtn").addEventListener("click", async () => {
     console.warn("[가상미술관] 클립보드 복사 실패:", err.message || err);
     window.prompt("아래 주소를 복사해서 사용하세요:", shareUrl);
   }
-});
+}
+document.getElementById("qrCopyLinkBtn").addEventListener("click", (e) => copyShareUrl(e.currentTarget));
 
 function showGalleryEntry(asTeacher) {
   isTeacher = !!asTeacher;

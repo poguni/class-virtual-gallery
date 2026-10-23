@@ -4,15 +4,17 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>우리 반 가상 미술관 (Class Virtual Gallery)</title>
-<link rel="stylesheet" href="css/style.css?v=20261024" />
+<link rel="stylesheet" href="css/style.css?v=20261024b" />
 </head>
 <body>
 
 <!-- 로그인 화면 -->
 <div id="authScreen">
-  <div class="auth-card">
-    <h1 style="font-size:26px; margin-bottom:2px;">우리 반 가상 미술관</h1>
-    <div class="sub" style="margin-bottom:20px;">CLASS VIRTUAL GALLERY</div>
+  <!-- 시작 화면과 같은 미술관 입장권 모양: 본체(교사 로그인·회원가입) + 뜯는 부분(학생·학부모 입장) -->
+  <div class="ticket">
+  <div class="ticket-main">
+    <div class="sub">CLASS VIRTUAL GALLERY</div>
+    <h1>우리 반 가상 미술관</h1>
 
     <div id="authTabs">
       <button type="button" class="authTab active" data-mode="login">로그인</button>
@@ -28,15 +30,17 @@
       <button type="submit" id="authSubmitBtn">로그인</button>
     </form>
 
-    <div class="auth-divider">또는</div>
-
     <!-- Supabase에서 Google 로그인이 꺼져 있어 숨김 (켜면 style 속성만 지우면 다시 사용 가능) -->
     <button id="googleLoginBtn" type="button" style="display:none;">
       <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" />
       Google로 로그인
     </button>
+  </div>
 
+  <div class="ticket-stub">
+    <div class="auth-divider">또는</div>
     <button id="guestEnterBtn" type="button">학생 · 학부모로 입장하기 (로그인 없이 감상)</button>
+  </div>
   </div>
 </div>
 
@@ -64,7 +68,7 @@
       </div>
     </div>
 
-    <div id="qrEntryBox">
+    <div id="qrEntryBox" class="ticket-stub">
       <div class="qr-canvas-wrap" id="qrCanvasWrap"></div>
       <div class="qr-side">
         <div class="qr-caption">📱 휴대폰으로 QR코드를 스캔하면<br/>같은 전시장으로 바로 접속할 수 있어요</div>
@@ -81,6 +85,16 @@
       <h1>🛠 교사용 업로드 관리자</h1>
       <button id="adminCloseBtn" type="button">✕ 닫기</button>
     </div>
+
+    <!-- 우리 반 링크: 내 공유 코드(?t=)가 붙은 주소 — 어느 탭에서든 보이도록 탭 위에 둠 -->
+    <section class="admin-share">
+      <h2>우리 반 링크</h2>
+      <div class="admin-share-row">
+        <input id="adminShareUrl" type="text" readonly aria-label="우리 반 링크" />
+        <button id="adminShareCopyBtn" type="button" class="admin-btn-primary">🔗 링크 복사</button>
+      </div>
+      <p class="admin-help">학생·학부모에게 이 링크를 보내면 "현재 전시장"으로 설정한 전시를 볼 수 있어요. 현재 전시장을 바꿔도 링크는 그대로예요.</p>
+    </section>
 
     <div class="admin-tabs">
       <button type="button" class="admin-tab active" data-tab="create">새 전시 만들기</button>
@@ -302,13 +316,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <!-- 앱 스크립트: 일반 <script>라 전역 변수를 함께 쓰므로 아래 순서를 지켜야 함 -->
-<script src="js/auth.js?v=20261024"></script>
+<script src="js/auth.js?v=20261024b"></script>
 <script src="js/demo-data.js?v=20261024"></script>
 <script src="js/gallery-data.js?v=20261024"></script>
 <script src="js/scene.js?v=20261024"></script>
 <script src="js/controls.js?v=20261024"></script>
 <script src="js/viewer.js?v=20261024"></script>
-<script src="js/admin-upload.js?v=20261024"></script>
+<script src="js/admin-upload.js?v=20261024b"></script>
 <script src="js/admin-manage.js?v=20261024"></script>
 <script src="js/report.js?v=20261024"></script>
 </body>

@@ -11,7 +11,9 @@ document.getElementById("adminOpenBtn").addEventListener("click", () => {
   startScreenEl.style.display = "none";
   document.getElementById("adminScreen").style.display = "block";
   document.getElementById("adminTeachersTab").style.display = currentTeacher && currentTeacher.is_admin ? "" : "none";
+  document.getElementById("adminShareUrl").value = getShareUrl(); // 내 공유 코드가 붙은 "우리 반 링크"
 });
+document.getElementById("adminShareCopyBtn").addEventListener("click", (e) => copyShareUrl(e.currentTarget));
 document.getElementById("adminCloseBtn").addEventListener("click", () => {
   document.getElementById("adminScreen").style.display = "none";
   startScreenEl.style.display = "flex";
