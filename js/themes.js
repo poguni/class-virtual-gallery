@@ -151,17 +151,20 @@ function drawCheckerMat(ctx, s) {
 }
 
 /* ---------- 테마 정의 ----------
+   swatch: 관리 화면의 색 견본 [벽, 바닥, 강조색]
    accent: 입구 안쪽 색 띠 (null이면 방 순서대로 ROOM_ACCENT_COLORS)
    fill:   방 가운데 보조광 { color, intensity, distance } — 밝은 벽이 어둡게 보이지 않도록 (없으면 보조광 없음) */
 const ROOM_THEMES = {
   classic: {
     label: "클래식 (기본)",
+    swatch: ["#2a2621", "#8a6a45", "#4a86b5"],
     accent: null,
     fill: null,
     createMaterials: () => ({ wall: wallMat, floor: floorMat, ceil: ceilMat, frame: frameMat }),
   },
   whitecube: {
     label: "화이트 큐브",
+    swatch: ["#eeeae3", "#cfcbc4", "#3a3d42"],
     accent: 0x3a3d42,
     fill: { color: 0xfff6ea, intensity: 1.15, distance: 26 },
     createMaterials: () => ({
@@ -173,6 +176,7 @@ const ROOM_THEMES = {
   },
   forest: {
     label: "숲속 정원",
+    swatch: ["#b5cca4", "#6f9a52", "#4f8a3c"],
     accent: 0x4f8a3c,
     fill: { color: 0xf1ffe6, intensity: 1.0, distance: 26 },
     createMaterials: () => ({
@@ -184,6 +188,7 @@ const ROOM_THEMES = {
   },
   ocean: {
     label: "바닷속",
+    swatch: ["#5aa8b6", "#e2cda0", "#1f6e8c"],
     accent: 0x1f6e8c,
     fill: { color: 0xe3f9ff, intensity: 1.0, distance: 26 },
     createMaterials: () => ({
@@ -195,6 +200,7 @@ const ROOM_THEMES = {
   },
   night: {
     label: "밤하늘",
+    swatch: ["#141a40", "#0f1330", "#e7b33f"],
     accent: 0xe7b33f,
     fill: { color: 0x9aa8ff, intensity: 0.2, distance: 22 }, // 분위기는 어둡게(벽이 남색으로 보이도록), 작품은 스포트라이트로
     createMaterials: () => {
@@ -209,6 +215,7 @@ const ROOM_THEMES = {
   },
   crayon: {
     label: "크레파스 놀이터",
+    swatch: ["#fff3da", "#f6b6b6", "#ff6f61"],
     accent: 0xff6f61,
     fill: { color: 0xfff4e0, intensity: 1.1, distance: 26 },
     createMaterials: () => ({
@@ -220,12 +227,9 @@ const ROOM_THEMES = {
   },
 };
 
-// 테스트용 미리보기: 주소에 ?theme=테마키 를 붙이면 모든 전시실을 그 테마로 보여줌 (Phase 8-4에서 제거 예정)
-const THEME_PREVIEW = new URLSearchParams(location.search).get("theme");
-
 const roomThemeMaterialCache = {};
 function getRoomTheme(key) {
-  const k = ROOM_THEMES[THEME_PREVIEW] ? THEME_PREVIEW : (ROOM_THEMES[key] ? key : DEFAULT_ROOM_THEME);
+  const k = ROOM_THEMES[key] ? key : DEFAULT_ROOM_THEME;
   if (!roomThemeMaterialCache[k]) roomThemeMaterialCache[k] = ROOM_THEMES[k].createMaterials();
   return { key: k, ...ROOM_THEMES[k], mats: roomThemeMaterialCache[k] };
 }

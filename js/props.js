@@ -9,9 +9,6 @@
    ========================================================================= */
 const PROP_OBSTACLES = []; // [{minX,maxX,minZ,maxZ}] — 몸(PLAYER_RADIUS)이 겹치면 서 있을 수 없음
 
-// 테스트용: 주소에 ?props=0 을 붙이면 모든 전시실의 소품을 끔 (Phase 8-4에서 제거 예정)
-const PROPS_PREVIEW = new URLSearchParams(location.search).get("props");
-
 const ZONE_WALL_BAND = 2.2;   // 작품 벽 앞 감상 공간
 const ZONE_PATH_GAP = 0.7;    // 문-문 통로 옆 여유
 const ZONE_END_GAP = 1.6;     // 앞뒤 벽(입구·뒷문 쪽) 여유

@@ -9,7 +9,7 @@ let DEMO_MODE = false;        // true면 좋아요/댓글이 로컬 메모리에
 let LOADED_AS_USER = null;    // 전시를 불러올 때 기준이 된 교사 계정 id (게스트/공유 링크로 불러왔으면 null)
 let OWNS_LOADED_EXHIBITION = false; // 지금 보고 있는 전시가 로그인한 교사 본인의 전시인지 (댓글 숨김 버튼 노출 기준)
 
-// 반환값: [{ id, room_number, name, artworks:[...] }, ...] — 전시실 순서(room_number) 그대로,
+// 반환값: [{ id, room_number, name, theme, show_props, artworks:[...] }, ...] — 전시실 순서(room_number) 그대로,
 // 각 전시실의 작품은 등록 순서(created_at) 그대로 담긴 "방 단위" 배열 (Phase 4: 다중 전시실 지원)
 async function loadArtworksData() {
   try {
@@ -36,7 +36,7 @@ async function loadArtworksData() {
     if (!exhibitions || !exhibitions.length) throw new Error("현재 전시 중인 전시가 없습니다");
 
     const { data: rooms, error: roomErr } = await supabaseClient
-      .from("rooms").select("id, room_number, name")
+      .from("rooms").select("id, room_number, name, theme, show_props")
       .eq("exhibition_id", exhibitions[0].id)
       .order("room_number", { ascending:true });
     if (roomErr) throw roomErr;
@@ -87,7 +87,7 @@ async function loadArtworksData() {
 
     // 작품이 하나도 없는 전시실은 3D 씬에서 제외 (빈 방을 만들지 않음)
     const roomList = rooms
-      .map(r => ({ id: r.id, room_number: r.room_number, name: r.name, artworks: artByRoom[r.id] || [] }))
+      .map(r => ({ id: r.id, room_number: r.room_number, name: r.name, theme: r.theme, show_props: r.show_props, artworks: artByRoom[r.id] || [] }))
       .filter(r => r.artworks.length > 0);
     if (!roomList.length) throw new Error("등록된 작품이 없습니다");
 

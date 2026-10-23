@@ -263,7 +263,7 @@ function buildWingStep(roomData, centerX, outward, cursorZ, roomIndex) {
   buildDoorFrame(centerX, room.minZ, CORR_WIDTH); // 이 전시실 → 다음 복도로 나가는 뒷문
   addRoomAccent(room, theme.accent ?? ROOM_ACCENT_COLORS[roomIndex % ROOM_ACCENT_COLORS.length], outward);
   // 테마 소품 (props.js) — 전시실마다 켜고 끌 수 있음(show_props, 기본은 켬)
-  if (roomData.show_props !== false && PROPS_PREVIEW !== "0") buildRoomProps(theme, room, centerX, outward);
+  if (roomData.show_props !== false) buildRoomProps(theme, room, centerX, outward);
 
   const roomLabel = roomData.name || `제 ${roomData.room_number} 전시실`;
   addRoomSign(room, roomLabel, roomData.artworks.length, centerX);
