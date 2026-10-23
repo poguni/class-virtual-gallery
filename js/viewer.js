@@ -91,9 +91,13 @@ document.getElementById("enterBtn").addEventListener("click", () => {
   canvasEl.focus();
   document.getElementById("hint").style.display = "block";
   document.getElementById("roomLabel").style.display = "block";
-  // 게스트(학생·학부모)는 애초에 로그인하지 않았으므로 로그아웃 버튼이 필요 없음 — 교사 계정일 때만 노출
-  if (isTeacher) document.getElementById("logoutBtn").style.display = "block";
+  // 게스트(학생·학부모)는 애초에 로그인하지 않았으므로 처음 화면·로그아웃 버튼이 필요 없음 — 교사 계정일 때만 노출
+  if (isTeacher) document.getElementById("teacherBar").style.display = "flex";
 });
+
+// 교사: 전시장을 둘러본 뒤 다시 설정하러 입장 화면으로 — 로그인 세션은 그대로 남아 있으므로
+// 새로고침하면 입장 화면(관리자·QR 코드)으로 돌아오고, 관리 화면에서 바꾼 테마·작품도 새로 불러온다
+document.getElementById("backToStartBtn").addEventListener("click", () => location.reload());
 
 // 교사 로그아웃 — 전시장 안(logoutBtn)과 시작 화면(startLogoutBtn) 두 버튼이 함께 사용
 async function logoutTeacher(btn) {

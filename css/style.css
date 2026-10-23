@@ -228,14 +228,18 @@ canvas { display:block; }
   color:#e9dcc0; font-size:13px; letter-spacing:2px; z-index:20;
   display:none; background:rgba(20,17,13,0.45); padding:6px 18px; border-radius:14px;
 }
-#logoutBtn {
-  position:fixed; top:16px; right:16px; z-index:22; display:none;
+#teacherBar {
+  position:fixed; top:16px; right:16px; z-index:22; display:none; gap:8px;
+}
+/* 좁은 화면에서는 가운데 위 전시실 이름표와 겹치지 않도록 그 아래로 내림 */
+@media (max-width:560px) { #teacherBar { top:54px; } }
+#teacherBar button {
   background:rgba(20,17,13,0.55); color:#f0dcb8; border:1px solid rgba(255,222,170,0.3);
   font-size:12.5px; font-weight:700; letter-spacing:0.5px;
   padding:8px 16px; border-radius:20px; cursor:pointer;
   backdrop-filter:blur(2px); transition:all .15s ease;
 }
-#logoutBtn:hover { background:rgba(217,163,94,0.85); color:#2b1a0d; border-color:transparent; }
+#teacherBar button:hover { background:rgba(217,163,94,0.85); color:#2b1a0d; border-color:transparent; }
 
 /* ---------- 모바일 조작 UI ---------- */
 #joystickZone {

@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>우리 반 가상 미술관 (Class Virtual Gallery)</title>
-<link rel="stylesheet" href="css/style.css?v=20261024f" />
+<link rel="stylesheet" href="css/style.css?v=20261024g" />
 </head>
 <body>
 
@@ -273,7 +273,10 @@
 
 <div id="crosshair"></div>
 <div id="roomLabel"></div>
-<button id="logoutBtn" title="교사 계정 로그아웃">🔓 로그아웃</button>
+<div id="teacherBar">
+  <button id="backToStartBtn" type="button" title="입장 화면(교사용 업로드 관리자·QR 코드)으로 돌아가기">↩ 처음 화면으로</button>
+  <button id="logoutBtn" type="button" title="교사 계정 로그아웃">🔓 로그아웃</button>
+</div>
 <div id="hint">작품을 클릭하면 크게 볼 수 있어요</div>
 <div id="joystickZone"><div id="joystickThumb"></div></div>
 <div id="lookZoneHint">👆 화면을 드래그하면 시선이 움직여요</div>
@@ -323,7 +326,7 @@
 <script src="js/props.js?v=20261024f"></script>
 <script src="js/scene.js?v=20261024g"></script>
 <script src="js/controls.js?v=20261024e"></script>
-<script src="js/viewer.js?v=20261024"></script>
+<script src="js/viewer.js?v=20261024g"></script>
 <script src="js/admin-upload.js?v=20261024b"></script>
 <script src="js/admin-manage.js?v=20261024f"></script>
 <script src="js/report.js?v=20261024"></script>
