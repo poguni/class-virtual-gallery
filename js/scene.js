@@ -67,7 +67,7 @@ const ROOM_FRONT_MARGIN = 3, ROOM_BACK_MARGIN = 2, ARTWORK_STEP = 4; // 작품 �
 const WING_CENTER_A = -4, WING_CENTER_B = 4;   // A동(나가는 길)·B동(돌아오는 길) 복도 중심 x좌표
 const WING_ROOM_OUT = 10;                       // 전시실이 복도 안쪽 벽에서 바깥쪽으로 뻗어나가는 폭
 
-function buildFloorCeil(minX,maxX,minZ,maxZ,h,floorMaterial) {
+function buildFloorCeil(minX,maxX,minZ,maxZ,h,floorMaterial,ceilMaterial) {
   const w = maxX-minX, d = maxZ-minZ;
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(w,d), floorMaterial || floorMat);
   floor.rotation.x = -Math.PI/2;
@@ -75,17 +75,18 @@ function buildFloorCeil(minX,maxX,minZ,maxZ,h,floorMaterial) {
   floor.receiveShadow = true;
   scene.add(floor);
 
-  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(w,d), ceilMat);
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(w,d), ceilMaterial || ceilMat);
   ceil.rotation.x = Math.PI/2;
   ceil.position.set((minX+maxX)/2, h, (minZ+maxZ)/2);
   scene.add(ceil);
 }
 buildFloorCeil(LOBBY.minX,LOBBY.maxX,LOBBY.minZ,LOBBY.maxZ,LOBBY.h);
 
-function wallSeg(x1,z1,x2,z2,h) {
+// material: 전시실 테마의 벽 재질 (생략하면 로비·복도용 기본 wallMat)
+function wallSeg(x1,z1,x2,z2,h,material) {
   const len = Math.hypot(x2-x1, z2-z1);
   const geo = new THREE.BoxGeometry(len, h, 0.25);
-  const wall = new THREE.Mesh(geo, wallMat);
+  const wall = new THREE.Mesh(geo, material || wallMat);
   wall.position.set((x1+x2)/2, h/2, (z1+z2)/2);
   wall.rotation.y = -Math.atan2(z2-z1, x2-x1);
   wall.receiveShadow = true; wall.castShadow = false;
@@ -165,13 +166,13 @@ function computeRoomDepth(count) {
 
 // 전시실 벽: 앞벽/뒷벽 모두 그 동의 복도 중심(centerX) 기준 폭만큼 열어둔다.
 // 순환 동선이라 막다른 방이 없으므로 뒷벽도 항상 열려 있다(다음 복도로 이어짐).
-function buildRoomWalls(room, centerX) {
-  wallSeg(room.minX,room.maxZ, centerX-CORR_HALF,room.maxZ, room.h);
-  wallSeg(centerX+CORR_HALF,room.maxZ, room.maxX,room.maxZ, room.h);
-  wallSeg(room.minX,room.minZ, room.minX,room.maxZ, room.h); // 좌
-  wallSeg(room.maxX,room.minZ, room.maxX,room.maxZ, room.h); // 우
-  wallSeg(room.minX,room.minZ, centerX-CORR_HALF,room.minZ, room.h);
-  wallSeg(centerX+CORR_HALF,room.minZ, room.maxX,room.minZ, room.h);
+function buildRoomWalls(room, centerX, material) {
+  wallSeg(room.minX,room.maxZ, centerX-CORR_HALF,room.maxZ, room.h, material);
+  wallSeg(centerX+CORR_HALF,room.maxZ, room.maxX,room.maxZ, room.h, material);
+  wallSeg(room.minX,room.minZ, room.minX,room.maxZ, room.h, material); // 좌
+  wallSeg(room.maxX,room.minZ, room.maxX,room.maxZ, room.h, material); // 우
+  wallSeg(room.minX,room.minZ, centerX-CORR_HALF,room.minZ, room.h, material);
+  wallSeg(centerX+CORR_HALF,room.minZ, room.maxX,room.minZ, room.h, material);
 }
 
 // 복도 벽 (양 끝은 로비/전시실이 이미 자기 쪽 출입구를 뚫어두므로 옆면만 세우면 됨)
@@ -250,17 +251,18 @@ function buildWingStep(roomData, centerX, outward, cursorZ, roomIndex) {
   const room = outward < 0
     ? { minX:centerX-WING_ROOM_OUT, maxX:centerX+CORR_HALF, minZ:corr.minZ-depth, maxZ:corr.minZ, h:ROOM_H }
     : { minX:centerX-CORR_HALF, maxX:centerX+WING_ROOM_OUT, minZ:corr.minZ-depth, maxZ:corr.minZ, h:ROOM_H };
-  buildFloorCeil(room.minX,room.maxX,room.minZ,room.maxZ,room.h);
-  buildRoomWalls(room, centerX); // 순환 동선이라 막다른 방이 없이 뒷문도 항상 열려 있음
+  const theme = getRoomTheme(roomData.theme); // 전시실 테마 (themes.js)
+  buildFloorCeil(room.minX,room.maxX,room.minZ,room.maxZ,room.h, theme.mats.floor, theme.mats.ceil);
+  buildRoomWalls(room, centerX, theme.mats.wall); // 순환 동선이라 막다른 방이 없이 뒷문도 항상 열려 있음
   buildDoorFrame(centerX, room.maxZ, CORR_WIDTH); // 복도 → 이 전시실 진입부
   buildDoorFrame(centerX, room.minZ, CORR_WIDTH); // 이 전시실 → 다음 복도로 나가는 뒷문
-  addRoomAccent(room, ROOM_ACCENT_COLORS[roomIndex % ROOM_ACCENT_COLORS.length], outward);
+  addRoomAccent(room, theme.accent ?? ROOM_ACCENT_COLORS[roomIndex % ROOM_ACCENT_COLORS.length], outward);
 
   const roomLabel = roomData.name || `제 ${roomData.room_number} 전시실`;
   addRoomSign(room, roomLabel, roomData.artworks.length, centerX);
   SEGMENTS.push({ type:"room", label:roomLabel, minX:room.minX, maxX:room.maxX, minZ:room.minZ, maxZ:room.maxZ, roomIndex });
 
-  return { bounds:room, endZ:room.minZ };
+  return { bounds:room, endZ:room.minZ, theme };
 }
 
 // wingRooms: 이 동에 배정된 방 데이터 배열(비어있을 수도 있음 — 방이 1개뿐이면 한쪽 동은 통로만 남음)
@@ -281,7 +283,7 @@ function buildWing(wingRooms, centerX, outward, roomIndexStart) {
 
   wingRooms.forEach((roomData) => {
     const step = buildWingStep(roomData, centerX, outward, cursorZ, idx);
-    built.push({ ...roomData, bounds:step.bounds, roomIndex:idx });
+    built.push({ ...roomData, bounds:step.bounds, roomIndex:idx, theme:step.theme });
     cursorZ = step.endZ;
     idx++;
   });
@@ -477,7 +479,7 @@ function mountArtwork(art, index, ctx) {
 
     // 액자 (그림 비율에 맞춰 함께 커지거나 작아짐, 벽면에서 살짝 튀어나오도록 배치)
     const frameW = w + FRAME_MARGIN, frameH = h + FRAME_MARGIN;
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(frameW, frameH, FRAME_DEPTH), frameMat);
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(frameW, frameH, FRAME_DEPTH), ctx.frameMat || frameMat);
     frame.position.set(frameCenter, 2.0, z);
     frame.rotation.y = rotY;
     scene.add(frame);
@@ -537,8 +539,8 @@ function mountArtwork(art, index, ctx) {
 const ROOM_LIGHT_GROUPS = {};
 
 // bounds: 이 작품들이 걸릴 전시실의 {minX,maxX,minZ,maxZ} / indexOffset: 전체 artworks 배열에서의 시작 인덱스
-// roomIndex: 이 전시실이 SEGMENTS/ROOM_LIGHT_GROUPS에서 쓰는 방 번호(0부터 시작)
-function placeArtworksInScene(list, bounds, indexOffset, roomIndex) {
+// roomIndex: 이 전시실이 SEGMENTS/ROOM_LIGHT_GROUPS에서 쓰는 방 번호(0부터 시작) / theme: 이 전시실 테마(액자 재질)
+function placeArtworksInScene(list, bounds, indexOffset, roomIndex, theme) {
   const roomZStart = bounds.minZ + ROOM_FRONT_MARGIN, roomZEnd = bounds.maxZ - ROOM_BACK_MARGIN;
   const perSide = Math.max(1, Math.ceil(list.length / 2));
   const step = perSide > 1 ? (roomZEnd - roomZStart) / (perSide - 1) : 0;
@@ -556,7 +558,7 @@ function placeArtworksInScene(list, bounds, indexOffset, roomIndex) {
     const labelX = x + dirSign * LABEL_GAP;                 // 이름표 위치
     const rotY = side === "left" ? Math.PI/2 : -Math.PI/2;
 
-    mountArtwork(art, indexOffset + i, { x, labelX, frameCenter, z, rotY, side, lightsBucket });
+    mountArtwork(art, indexOffset + i, { x, labelX, frameCenter, z, rotY, side, lightsBucket, frameMat: theme && theme.mats.frame });
   });
 }
 
@@ -596,6 +598,6 @@ window.artworksLoadPromise = loadArtworksData().then((roomsData) => {
   builtRooms.forEach((room) => {
     const offset = artworks.length;
     artworks = artworks.concat(room.artworks);
-    placeArtworksInScene(room.artworks, room.bounds, offset, room.roomIndex);
+    placeArtworksInScene(room.artworks, room.bounds, offset, room.roomIndex, room.theme);
   });
 });
