@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>우리 반 가상 미술관 개발 가이드 v9</title>
+<style>
+  :root { --sidebar-w: 270px; --accent: #9A5B22; --accent-soft: #f3e6d4; --text: #2b2620; --muted: #6b6355; --bg: #fffdf9; --panel: #f7f2e8; --border: #e7dfd0; }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", "Noto Sans KR", "Malgun Gothic", sans-serif; color: var(--text); background: var(--bg); line-height: 1.75; word-break: keep-all; }
+  .layout { display: flex; min-height: 100vh; }
+  nav.sidebar { position: sticky; top: 0; align-self: flex-start; width: var(--sidebar-w); flex-shrink: 0; height: 100vh; overflow-y: auto; padding: 24px 16px; background: var(--panel); border-right: 1px solid var(--border); }
+  nav.sidebar h1 { font-size: 15px; margin: 0 0 4px; }
+  nav.sidebar .meta { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+  nav.sidebar a { display: block; padding: 7px 10px; margin: 2px 0; font-size: 13.5px; line-height: 1.45; color: var(--text); text-decoration: none; border-radius: 8px; }
+  nav.sidebar a:hover { background: var(--accent-soft); }
+  nav.sidebar a.active { background: var(--accent); color: #fff; }
+  nav.sidebar a:focus-visible, main a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  main { flex: 1; min-width: 0; padding: 40px 48px 80px; max-width: 920px; }
+  main header h1 { font-size: 26px; margin: 0 0 12px; line-height: 1.35; }
+  main header .doc-meta { font-size: 13.5px; color: var(--muted); background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 36px; }
+  main section { margin-bottom: 48px; scroll-margin-top: 24px; }
+  main h2 { font-size: 22px; border-bottom: 2px solid var(--border); padding-bottom: 8px; }
+  main h3 { font-size: 17px; color: var(--accent); margin-top: 28px; }
+  main a { color: var(--accent); }
+  .table-wrap { overflow-x: auto; }
+  main table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  main th, main td { border: 1px solid var(--border); padding: 8px 10px; font-size: 14px; text-align: left; vertical-align: top; }
+  main th { background: var(--panel); }
+  main code { background: #f1ece2; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; word-break: normal; overflow-wrap: anywhere; }
+  main pre { background: #2b2620; color: #f5ead8; padding: 14px; border-radius: 8px; overflow-x: auto; line-height: 1.5; }
+  main pre code { background: none; padding: 0; color: inherit; word-break: normal; }
+  main blockquote { margin: 12px 0; padding: 10px 16px; border-left: 4px solid var(--accent); background: var(--panel); border-radius: 0 8px 8px 0; }
+  @media (max-width: 800px) {
+    .layout { flex-direction: column; }
+    nav.sidebar { position: relative; width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    main { padding: 28px 16px 60px; }
+  }
+  @media print { nav.sidebar { display: none; } main { max-width: none; padding: 0; } }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="sidebar" id="sidebar">
+    <h1>우리 반 가상 미술관</h1>
+    <div class="meta">개발 가이드 v9 · 2026-10-24</div>
+    <a href="#sec-0">0. 새 대화창에서 작업을 이어가는 방법</a>
+    <a href="#sec-1">1. 개요</a>
+    <a href="#sec-2">2. 목표 및 배경</a>
+    <a href="#sec-3">3. 주요 기능</a>
+    <a href="#sec-4">4. 기술 스택 및 아키텍처</a>
+    <a href="#sec-5">5. 개발 과정 (타임라인)</a>
+    <a href="#sec-6">6. 전체 공간(동선) 구조</a>
+    <a href="#sec-7">7. 코드 구조 — 파일별 핵심 함수·상수 레퍼런스</a>
+    <a href="#sec-8">8. 주요 의사결정과 이유</a>
+    <a href="#sec-9">9. 문제 해결 기록 (누적)</a>
+    <a href="#sec-10">10. 보안·성능 고려사항</a>
+    <a href="#sec-11">11. 테스트 및 검증</a>
+    <a href="#sec-12">12. 배포</a>
+    <a href="#sec-13">13. 알려진 한계</a>
+    <a href="#sec-14">14. 향후 개선 아이디어 / 업데이트 계획</a>
+    <a href="#sec-15">15. 이전 버전(v8) 이후 변경 사항</a>
+  </nav>
+  <main id="content">
+    <header><h1>우리 반 가상 미술관 (Class Virtual Gallery) — 개발 가이드 v9</h1><div class="doc-meta"><div>작성일: 2026-10-24</div><div>버전: v9</div><div>이전 버전: v8 (<code>docs/Development_Guide_v8.md</code>, 2026-10-24)</div><div>이 문서의 성격: Phase 1~7(v8까지)의 내용에 Phase 8(전시실 테마·소품), 방 이동 멈춤 수정, 교사용 "처음 화면으로" 버튼, Phase 9(로비 리뉴얼)를 더한 <strong>전체 스냅샷</strong>입니다. 새 대화창에서는 이 문서(v9) 하나만 참고하면 되고, 다음 작업 후 <code>v10</code>으로 갱신하는 방식을 유지해 주세요.</div></div></header>
+    <section id="sec-0"><h2>0. 새 대화창에서 작업을 이어가는 방법</h2>
+<ol><li>저장소를 내려받아 그 폴더에서 작업합니다: <code>git clone https://github.com/poguni/class-virtual-gallery.git</code></li><li>이 문서(<code>docs/Development_Guide_v9.md</code> 또는 <code>.html</code>)를 먼저 읽게 합니다.</li><li>요청 예시:</li></ol>
+<blockquote>"docs/Development_Guide_v9.md를 참고해서 이어서 개발해줘. 다음 작업은 ◯◯이야."</blockquote>
+<ul><li>코드는 <strong>여러 파일로 나뉘어 있으므로</strong>(4.2절) 고칠 기능에 해당하는 파일만 보면 됩니다.</li><li>DB를 바꾸는 작업이면 <code>supabase/migrations/</code>에 SQL을 남기고, 되돌리기 SQL도 <code>supabase/rollback/</code>에 함께 둡니다(12절의 절차 참고).</li><li>3D 화면을 바꾸는 작업이면 <strong>조명 개수를 늘리지 않는 것</strong>이 원칙입니다(8절·10절). 조명을 새로 만들면 방 이동 때 멈춤이 다시 생길 수 있습니다.</li></ul>
+    </section>
+    <section id="sec-1"><h2>1. 개요</h2>
+<div class="table-wrap"><table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody><tr><td>앱 이름</td><td>우리 반 가상 미술관 (Class Virtual Gallery)</td></tr><tr><td>한 줄 소개</td><td>학생 작품 사진을 올리면 3D 가상 미술관이 자동으로 만들어지고, 학생·학부모가 접속해 감상하며 좋아요·댓글을 남기는 초등 학급용 웹 앱</td></tr><tr><td>대상 사용자</td><td>초등 교사(전시 생성·관리), 학생·학부모(로그인 없이 감상)</td></tr><tr><td>배포 주소</td><td><a href="https://poguni.github.io/class-virtual-gallery/">https://poguni.github.io/class-virtual-gallery/</a></td></tr><tr><td>저장소</td><td><a href="https://github.com/poguni/class-virtual-gallery">https://github.com/poguni/class-virtual-gallery</a></td></tr><tr><td>개발 기간</td><td>2026-07 (Phase 1~6) → 2026-08-29 (전시장 교체 기능) → 2026-10-23~24 (Phase 7~9)</td></tr></tbody></table></div>
+    </section>
+    <section id="sec-2"><h2>2. 목표 및 배경</h2>
+<ul><li>미술 시간에 완성한 작품을 교실 벽에만 걸어두지 않고, <strong>언제 어디서나 들어가 볼 수 있는 전시관</strong>으로 만들어 주기 위해 시작했습니다.</li><li>교사는 사진 파일을 한 번에 올리기만 하면 되고(파일명으로 이름·제목 자동 입력, 전시실 자동 배정), 학생·학부모는 <strong>QR코드 하나로</strong> 바로 입장합니다.</li><li>감상 활동(좋아요·댓글)을 교사가 <strong>감상 결과 리포트</strong>로 내려받아 평가 자료로 활용할 수 있습니다.</li><li>Phase 7은 여러 선생님이 함께 쓰기 위한 <strong>보안·교사별 전시 분리</strong>가 목표였습니다.</li><li>Phase 8~9는 <strong>"진짜 미술관에 온 느낌"</strong>이 목표였습니다. 전시실마다 주제에 맞는 분위기(테마·소품)를 고를 수 있게 하고, 검은 배경이 보이던 로비를 밝은 현대 미술관 로비로 바꿨습니다. 휴대폰에서 방을 옮길 때 끊기던 문제도 함께 해결했습니다.</li></ul>
+    </section>
+    <section id="sec-3"><h2>3. 주요 기능</h2>
+<p><strong>감상(학생·학부모)</strong></p>
+<ul><li>로그인 없이 입장, QR코드·공유 링크(<code>?t=교사코드</code>)로 해당 교사의 현재 전시 관람</li><li>1인칭 이동: PC는 WASD + 방향키 + 마우스 클릭, 모바일은 자체 구현 조이스틱 + 드래그 + 탭</li><li>로비 → A동 전시실들 → 연결 통로 → B동 전시실들 → 로비로 돌아오는 순환(ㅁ자) 동선</li><li><strong>[Phase 9] 밝은 화이트 로비</strong>: 통유리벽 너머 낮 정원(하늘·잔디·돌길·나무), 테라초 바닥, 천장 선 조명, 창가 벤치·화분</li><li><strong>[Phase 8] 전시실 테마 6종</strong>: 클래식(기본)·화이트 큐브·숲속 정원·바닷속·밤하늘·크레파스 놀이터. 테마마다 벽·바닥·천장 무늬, 액자, 강조색, 소품이 달라짐</li><li>소품·벤치·화분에는 부딪힘 처리가 되어 있어 통과하지 않음</li><li>작품 확대 보기, 좋아요(방문자 키로 중복 방지), 댓글(이름 10자·내용 80자)</li><li>스마트폰 뒤로 가기 시 열린 창만 한 단계씩 닫힘</li></ul>
+<p><strong>관리(교사)</strong></p>
+<ul><li>회원가입 → <strong>관리자 승인</strong> 후 사용</li><li>새 전시 만들기: 폴더/여러 장 업로드, 파일명(<code>번호_이름_제목.jpg</code>) 자동 해석, 방 자동 배정(방당 8점 기준 균등 분배), 진열 순서(이름순·랜덤·직접)</li><li>기존 전시 관리: 정보 수정, 작품 수정·삭제·순서 변경, 작품 추가, 전시 삭제</li><li><strong>[Phase 8] 전시실별 테마 선택 + 색 견본 + 소품 표시 켜기/끄기</strong> (바꾸면 바로 저장)</li><li><strong>현재 전시장 설정</strong>: 교사마다 하나의 전시를 방문자에게 공개(<code>is_active</code>)</li><li>관리자 화면 상단의 <strong>"우리 반 링크" 표시·복사</strong> 버튼</li><li>댓글 숨김/복원, 감상 결과 리포트(오프라인 HTML 파일) 다운로드</li><li>관리자 전용 <strong>교사 승인 탭</strong></li><li>시작·로그인 화면 "미술관 입장권" 디자인</li><li>전시장 안 오른쪽 위 <strong>"↩ 처음 화면으로"</strong>(로그아웃 없이 업로드 관리자·QR 화면으로 복귀)와 <strong>로그아웃</strong> 버튼</li></ul>
+    </section>
+    <section id="sec-4"><h2>4. 기술 스택 및 아키텍처</h2>
+<h3>4.1 구성 요소</h3>
+<div class="table-wrap"><table><thead><tr><th>영역</th><th>사용 기술</th><th>선택 이유</th></tr></thead><tbody><tr><td>화면·3D</td><td>Vanilla JS + Three.js r128 (cdnjs)</td><td>빌드 없이 파일만 올리면 동작, 교사가 직접 관리하기 쉬움</td></tr><tr><td>질감·무늬</td><td>Canvas 2D로 그린 텍스처</td><td>이미지 파일을 따로 두지 않아 저장소가 가볍고, 무늬를 코드로 조정 가능</td></tr><tr><td>백엔드</td><td>Supabase (Auth · Postgres · Storage)</td><td>서버 없이 로그인·DB·이미지 저장을 한 번에 해결, RLS로 권한 제어</td></tr><tr><td>QR</td><td>qrcodejs 1.0.0 (cdnjs)</td><td>접속 주소를 그 자리에서 QR로 그림</td></tr><tr><td>배포</td><td>GitHub Pages (<code>main</code> 브랜치 루트)</td><td>무료, push만 하면 1~2분 안에 자동 배포</td></tr></tbody></table></div>
+<h3>4.2 파일 구조</h3>
+<pre><code>(저장소 루트)
+├── index.html              ← 화면 구조(HTML)만. CSS·JS를 불러옴
+├── css/style.css           ← 모든 화면 디자인
+├── js/                     ← 아래 순서대로 불러옴 (순서 변경 금지)
+│   ├── auth.js             ← Supabase 연결, 로그인, 교사 승인 확인, QR코드
+│   ├── demo-data.js        ← 데모(더미) 작품
+│   ├── gallery-data.js     ← 전시·좋아요·댓글 불러오기 (전시실 theme·show_props 포함)
+│   ├── themes.js           ← [Phase 8] 전시실 테마 정의·재질·캔버스 무늬·보조광
+│   ├── props.js            ← [Phase 8] 테마별 소품, 소품 부딪힘 영역(PROP_OBSTACLES)
+│   ├── scene.js            ← 3D 전시장 (로비·복도·전시실·조명 풀·작품 배치)
+│   ├── lobby.js            ← [Phase 9] 로비 유리벽·바깥 정원·천장 선 조명·벤치와 화분
+│   ├── controls.js         ← 이동, 벽·소품 충돌, 모바일 조이스틱
+│   ├── viewer.js           ← 화면 갱신 루프, 시작 화면, 작품 창, 좋아요·댓글, 교사 버튼
+│   ├── admin-upload.js     ← 새 전시 만들기, 교사 승인 탭
+│   ├── admin-manage.js     ← 기존 전시 관리, 전시실 테마 설정, 작품 추가
+│   └── report.js           ← 감상 결과 리포트
+├── assets/                 ← 시작·로그인 화면 배경 (PC/모바일)
+├── supabase/
+│   ├── migrations/         ← 적용한 DB 변경 SQL (기록용)
+│   └── rollback/           ← 되돌리기 SQL
+├── docs/                   ← 개발 가이드(이 문서)
+└── README.md               ← 배포 가이드</code></pre>
+<ul><li>JS 파일은 모듈(<code>import</code>)이 아닌 <strong>일반 <code>&lt;script&gt;</code></strong>로 불러와 전역 변수를 함께 씁니다. <code>themes.js</code>·<code>props.js</code>는 <code>scene.js</code>가 쓰므로 그 앞에, <code>lobby.js</code>는 <code>scene.js</code>의 <code>LOBBY</code>·재질을 쓰므로 <strong>바로 뒤에</strong> 둡니다.</li><li><code>?v=</code>는 브라우저 캐시 방지용입니다. 현재 값 예: <code>scene.js?v=20261024i</code>, <code>lobby.js?v=20261024e</code>, <code>viewer.js?v=20261024g</code>, <code>style.css?v=20261024g</code>. 하루에 여러 번 배포하므로 날짜 뒤에 알파벳을 붙여 올립니다.</li><li>코드 규모: JS 12개 약 3,900줄, CSS 540줄, HTML 335줄.</li></ul>
+<h3>4.3 DB 구조 (Supabase 프로젝트 <code>xloetjawdupadtfquxka</code>)</h3>
+<div class="table-wrap"><table><thead><tr><th>테이블</th><th>주요 컬럼</th><th>비고</th></tr></thead><tbody><tr><td><code>teachers</code></td><td><code>user_id</code>, <code>email</code>, <code>status</code>(pending/approved/rejected), <code>is_admin</code>, <code>share_code</code>, <code>approved_at</code></td><td>회원가입 시 트리거가 <code>pending</code>으로 자동 등록</td></tr><tr><td><code>exhibitions</code></td><td><code>id</code>, <code>title</code>, <code>grade</code>, <code>class</code>, <code>created_at</code>, <code>owner_id</code>, <code>is_active</code></td><td>교사별 현재 전시는 하나(부분 유니크 인덱스)</td></tr><tr><td><code>rooms</code></td><td><code>id</code>, <code>exhibition_id</code>, <code>room_number</code>, <code>name</code>, <strong><code>theme</code></strong>, <strong><code>show_props</code></strong></td><td>Phase 8: <code>theme</code> 기본 <code>classic</code>, 6종만 허용(체크 제약). <code>show_props</code> 기본 켬</td></tr><tr><td><code>artworks</code></td><td><code>id</code>, <code>room_id</code>, <code>student_name</code>, <code>title</code>, <code>image_url</code>, <code>created_at</code></td><td>진열 순서 = <code>created_at</code> 순</td></tr><tr><td><code>likes</code></td><td><code>artwork_id</code>, <code>visitor_key</code>, <code>created_at</code></td><td><code>(artwork_id, visitor_key)</code> 유니크</td></tr><tr><td><code>comments</code></td><td><code>artwork_id</code>, <code>nickname</code>, <code>content</code>, <code>is_hidden</code>, <code>created_at</code></td><td>이름 1~10자, 내용 1~80자 DB 제약</td></tr></tbody></table></div>
+<ul><li><code>rooms.theme</code> 허용 값: <code>classic</code>, <code>whitecube</code>, <code>forest</code>, <code>ocean</code>, <code>night</code>, <code>crayon</code> — <code>js/themes.js</code>의 <code>ROOM_THEMES</code> 키와 <strong>같아야 합니다.</strong> 테마를 추가하려면 두 곳을 함께 고칩니다.</li><li>Storage 버킷 <code>artwork-images</code>(public): 경로 <code>전시ID/전시실ID/파일명</code>, 10MB 이하·jpeg/png/webp/gif만 허용.</li><li>DB 함수(RPC): <code>get_active_exhibition(p_code)</code>, <code>like_counts(p_artwork_ids)</code>, <code>set_active_exhibition(p_ex)</code>.</li><li>정책 판단용 헬퍼는 API로 노출되지 않는 <code>private</code> 스키마: <code>is_approved_teacher</code>, <code>is_admin</code>, <code>can_manage_exhibition</code>, <code>is_public_exhibition</code>, <code>room_exhibition</code>, <code>artwork_exhibition</code>, <code>can_manage_storage_path</code>, <code>request_visitor_key</code>.</li></ul>
+<h3>4.4 권한 모델 (RLS)</h3>
+<div class="table-wrap"><table><thead><tr><th>대상</th><th>방문자(비로그인)</th><th>승인 대기 교사</th><th>승인 교사</th><th>관리자</th></tr></thead><tbody><tr><td>현재 전시(<code>is_active</code>) 조회</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr><tr><td>지난 전시 조회</td><td>❌</td><td>❌</td><td>내 것만</td><td>내 것만</td></tr><tr><td>전시·전시실(테마 포함)·작품·이미지 생성/수정/삭제</td><td>❌</td><td>❌</td><td>내 것만</td><td>내 것만</td></tr><tr><td>댓글 등록</td><td>공개 전시에</td><td>공개 전시에</td><td>✅</td><td>✅</td></tr><tr><td>숨긴 댓글 조회·댓글 숨김/삭제</td><td>❌</td><td>❌</td><td>내 전시만</td><td>내 전시만</td></tr><tr><td>좋아요 조회·취소</td><td>내 방문자 키만</td><td>〃</td><td>내 전시 전체 조회</td><td>〃</td></tr><tr><td>교사 승인/거절</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td></tr></tbody></table></div>
+<ul><li>방문자 키는 브라우저 <code>localStorage</code>에 만들고, 모든 요청에 <strong><code>x-visitor-key</code> 헤더</strong>로 보냅니다.</li><li>관리자는 승인만 담당하며 <strong>다른 교사의 전시는 관리자도 볼 수 없습니다.</strong></li><li>Phase 8의 테마 컬럼은 기존 "내 전시의 전시실만 수정" 정책이 그대로 적용되어 <strong>정책 변경이 없었습니다.</strong></li></ul>
+    </section>
+    <section id="sec-5"><h2>5. 개발 과정 (타임라인)</h2>
+<div class="table-wrap"><table><thead><tr><th>단계</th><th>시기</th><th>내용</th></tr></thead><tbody><tr><td>Phase 1~3</td><td>2026-07</td><td>전시 자동 생성, 1인칭 관람, 좋아요·댓글, 관리자 업로드/관리 페이지</td></tr><tr><td>Phase 4</td><td>2026-07</td><td>다중 전시실 &amp; ㅁ자 순환 동선, 조명 성능 최적화</td></tr><tr><td>Phase 5</td><td>2026-07</td><td>QR코드 &amp; GitHub Pages 배포</td></tr><tr><td>Phase 5.5</td><td>2026-07</td><td>로비 디자인 개선(코브 라이트·바닥 메달리온·브라스 라인)</td></tr><tr><td>Phase 6</td><td>2026-07-24</td><td>모바일 조이스틱 자체 구현, 감상 결과 리포트</td></tr><tr><td>추가</td><td>2026-08-29</td><td>전시장 교체 기능 (<code>10082b7</code>)</td></tr><tr><td>Phase 7-0</td><td>2026-10-23</td><td>원격 저장소 clone으로 작업 폴더 교체, 보고서를 <code>docs/</code>로 이동 (<code>8c4c05f</code>)</td></tr><tr><td>Phase 7-1</td><td>2026-10-23~24</td><td>교사 승인제·교사별 전시 소유·RLS 재설계 (<code>e45b7ad</code>)</td></tr><tr><td>Phase 7-2~5</td><td>2026-10-24</td><td>로그아웃 버튼, 입장권 시작 화면, 벽 관통 버그 수정, 파일 분리 (<code>b2e674d</code>~<code>b3f7f7d</code>), 가이드 v8 (<code>dd511e9</code>)</td></tr><tr><td>Phase 7-6</td><td>2026-10-24</td><td>로그인 화면도 입장권 디자인으로 통일, 관리자 화면 "우리 반 링크" 복사 (<code>b639732</code>)</td></tr><tr><td><strong>Phase 8-1</strong></td><td>2026-10-24</td><td>전시실 테마 틀(<code>themes.js</code>, <code>getRoomTheme</code>) — 클래식만, 변경 전과 픽셀 동일 (<code>cc3d66a</code>)</td></tr><tr><td><strong>Phase 8-2</strong></td><td>2026-10-24</td><td>테마 5종 추가(캔버스 무늬·액자·강조색), 밝은 테마용 방별 보조광 (<code>b598ce2</code>)</td></tr><tr><td><strong>Phase 8-3</strong></td><td>2026-10-24</td><td>테마별 소품(<code>props.js</code>)과 소품 부딪힘 처리 (<code>a3dcbb2</code>)</td></tr><tr><td><strong>Phase 8-4</strong></td><td>2026-10-24</td><td><code>rooms.theme</code>·<code>show_props</code> DB 컬럼, 관리 화면에서 전시실별 테마 선택 (<code>65fdcbf</code>)</td></tr><tr><td><strong>멈춤 수정</strong></td><td>2026-10-24</td><td>방 이동 시 1~3초 멈춤 → 조명 풀 + 미리 컴파일 (<code>34b3dcd</code>)</td></tr><tr><td><strong>교사 버튼</strong></td><td>2026-10-24</td><td>전시장 안 "↩ 처음 화면으로" (<code>e9caa14</code>)</td></tr><tr><td><strong>Phase 9</strong></td><td>2026-10-24</td><td>로비 리뉴얼: 9-1 유리벽·바깥 정원 / 9-2 화이트 톤 재질·천장 선 조명 / 9-3 창가 벤치·화분 / 9-4 통합 점검 (<code>103e0e8</code>)</td></tr></tbody></table></div>
+    </section>
+    <section id="sec-6"><h2>6. 전체 공간(동선) 구조</h2>
+<pre><code>          (바깥 정원: 하늘·잔디·돌길·나무 띠)
+                 ═══════════════   ← [Phase 9] 통유리벽 + 유리문
+                 │ 벤치    벤치 │  화분은 양 모서리
+                 │     로비      │  (환영 사인: 실제 전시 학년/반 표시)
+                 │  A동문   B동문 │
+                 └──┬─────────┬──┘
+                    │         │
+              [A동 복도]   [B동 복도]
+                    │         │
+              [제1전시실]  [제N전시실]  (B동은 방 번호를 뒤집어서 지음)
+                    │         │
+                    …         …
+                    │         │
+              [제k전시실]  [제k+1전시실]
+                    │         │
+                    └────┬────┘
+                   [연결 통로(가로)]  ← 두 동의 가장 안쪽 끝을 이어붙임</code></pre>
+<ul><li>전시실의 앞쪽 절반은 A동(나가는 길), 뒤쪽 절반은 B동(돌아오는 길)에 배정합니다. B동은 방 순서를 뒤집어 지어서, 연결 통로를 지나 로비 쪽으로 걸어오면 번호 순서대로 마주칩니다.</li><li>로비 입구 쪽(<code>LOBBY.maxZ</code>)은 예전에는 벽 없이 열려 있어 검은 화면이 보였습니다. Phase 9에서 이 자리에 유리벽을 세웠습니다(걸어 나갈 수는 없음).</li><li>예: 작품 22점 → 방 3개(8/7/7) → A동에 1·2관, B동에 3관.</li></ul>
+    </section>
+    <section id="sec-7"><h2>7. 코드 구조 — 파일별 핵심 함수·상수 레퍼런스</h2>
+<h3>7.1 <code>js/auth.js</code> — 로그인·교사 승인·QR</h3>
+<ul><li><strong><code>getOrCreateVisitorKey()</code> / <code>VISITOR_KEY</code></strong>, <strong><code>supabaseClient</code></strong>(<code>x-visitor-key</code> 헤더), <strong><code>SHARE_CODE_FROM_URL</code></strong></li><li><strong><code>enterWithSession(session)</code></strong> — 승인 상태 확인 후 입장, 승인 전/거절이면 로그아웃·안내</li><li><strong><code>getShareUrl()</code> / <code>renderEntryQR()</code> / <code>copyShareUrl()</code></strong> — 공유 링크·QR·링크 복사(시작 화면과 관리자 화면이 함께 사용)</li><li><strong><code>showGalleryEntry(asTeacher)</code></strong> — 시작 화면 표시</li><li>주의: <code>onAuthStateChange</code> 콜백 안에서 바로 Supabase를 호출하면 멈출 수 있어 <code>setTimeout</code>으로 미룸</li></ul>
+<h3>7.2 <code>js/gallery-data.js</code> — 데이터 불러오기</h3>
+<ul><li><strong><code>loadArtworksData()</code></strong> — ① <code>?t=코드</code> ② 교사 세션의 내 현재 전시 ③ 관리자의 현재 전시 순. 실패하면 데모. 전시실의 <code>theme</code>, <code>show_props</code>도 함께 읽음</li><li><strong><code>LOADED_AS_USER</code>, <code>OWNS_LOADED_EXHIBITION</code>, <code>DEMO_MODE</code></strong></li></ul>
+<h3>7.3 <code>js/themes.js</code> — 전시실 테마 (Phase 8)</h3>
+<ul><li><strong><code>ROOM_THEMES</code></strong> — 테마 정의. 각 항목: <code>label</code>, 벽·바닥·천장·액자 재질 값, 강조색, <code>fill</code>(방 가운데 보조광, 없으면 <code>null</code>)</li></ul>
+<div class="table-wrap"><table><thead><tr><th>키</th><th>이름</th><th>보조광</th></tr></thead><tbody><tr><td><code>classic</code></td><td>클래식 (기본)</td><td>없음 (Phase 7까지와 똑같은 모습)</td></tr><tr><td><code>whitecube</code></td><td>화이트 큐브</td><td>따뜻한 흰빛 1.15</td></tr><tr><td><code>forest</code></td><td>숲속 정원</td><td>연두빛 1.0</td></tr><tr><td><code>ocean</code></td><td>바닷속</td><td>하늘빛 1.0</td></tr><tr><td><code>night</code></td><td>밤하늘</td><td>푸른빛 0.2 (어두운 분위기, 작품은 스포트라이트로)</td></tr><tr><td><code>crayon</code></td><td>크레파스 놀이터</td><td>따뜻한 빛 1.1</td></tr></tbody></table></div>
+<ul><li><strong><code>getRoomTheme(key)</code></strong> — 키로 테마 찾기(모르는 키는 클래식). 재질은 테마별로 한 번만 만들어 재사용</li><li><strong><code>makeThemeTexture(size, draw)</code>, <code>tiledMaterial(tile, params)</code>, <code>applyTileUV(...)</code></strong> — 캔버스 무늬 텍스처, 벽·바닥 크기에 맞춘 반복</li><li>무늬 그리기: <code>drawConcrete</code>, <code>drawLeaves</code>, <code>drawGrass</code>, <code>drawWaves</code>, <code>drawSand</code>, <code>drawStars</code>, <code>drawCrayonShapes</code>, <code>drawCheckerMat</code>, <code>drawSpeckles</code></li><li>밤하늘의 별은 <strong>발광(emissive) 재질</strong>로 표현해 조명 수를 늘리지 않음</li></ul>
+<h3>7.4 <code>js/props.js</code> — 테마 소품 (Phase 8)</h3>
+<ul><li><strong><code>THEME_PROP_LAYOUTS</code></strong> — 테마별로 가운데 중심선(<code>center</code>)과 안쪽 양 모서리(<code>corners</code>)에 둘 소품</li></ul>
+<div class="table-wrap"><table><thead><tr><th>테마</th><th>가운데</th><th>모서리</th></tr></thead><tbody><tr><td>화이트 큐브</td><td>벤치</td><td>받침대 조각</td></tr><tr><td>숲속 정원</td><td>통나무 벤치, 덤불 화분</td><td>화분 나무</td></tr><tr><td>바닷속</td><td>둥근 의자</td><td>산호</td></tr><tr><td>밤하늘</td><td>행성</td><td>달 기둥</td></tr><tr><td>크레파스 놀이터</td><td>크레파스 의자, 대형 크레파스</td><td>쌓기 블록</td></tr></tbody></table></div>
+<ul><li><strong><code>buildRoomProps(theme, room, centerX, outward)</code></strong> — 작품 벽 앞 감상 공간·문과 문 사이 통로·입구 띠는 비우고, 방이 짧으면 가운데 소품은 생략</li><li><strong><code>placeProp(built, x, z)</code></strong> — 소품을 놓고 바닥 면적을 <strong><code>PROP_OBSTACLES</code></strong>에 등록(부딪힘 판정용). 로비 벤치·화분도 이 함수를 씀</li><li>클래식 테마와 <code>show_props = false</code>인 전시실은 소품 없음</li></ul>
+<h3>7.5 <code>js/scene.js</code> — 3D 전시장</h3>
+<div class="table-wrap"><table><thead><tr><th>상수</th><th>의미</th></tr></thead><tbody><tr><td><code>LOBBY</code></td><td>로비 크기 <code>{minX:-6,maxX:6,minZ:-1,maxZ:6,h:5}</code></td></tr><tr><td><code>CORR_MINX/MAXX</code>, <code>CORR_HALF</code>, <code>CORR_WIDTH</code></td><td>복도·문 폭 (2.8)</td></tr><tr><td><code>CORR_LEN</code></td><td>방 사이 복도 길이 (6)</td></tr><tr><td><code>ROOM_H</code></td><td>전시실 높이 (5)</td></tr><tr><td><code>WING_CENTER_A</code>(-4), <code>WING_CENTER_B</code>(4), <code>WING_ROOM_OUT</code>(10)</td><td>동 위치·전시실 폭</td></tr><tr><td><code>DOOR_H</code></td><td>문틀 높이 (4.0)</td></tr><tr><td><strong><code>LIGHT_POOL</code>, <code>ROOM_LIGHT_COUNTS</code>, <code>LIGHT_PARK_Y</code>(-50)</strong></td><td>(멈춤 수정) 조명 풀, 방별 조명 수, 안 쓰는 조명을 숨겨두는 높이</td></tr></tbody></table></div>
+<ul><li><strong><code>buildRoomsAndCorridors(roomsData)</code></strong> — 전체 동선 + 이동 판정용 <strong><code>SEGMENTS</code></strong>. 전시실 벽·바닥·천장·액자 재질은 테마에서 받음(로비·복도는 별도 재질)</li><li><strong>로비 재질(Phase 9-2)</strong> — <code>drawTerrazzo</code>로 그린 테라초 바닥(<code>lobbyFloorMat</code>), 따뜻한 흰 벽(<code>lobbyWallMat</code>), 흰 천장(<code>lobbyCeilMat</code>). 모두 약한 발광으로 밝기를 냄. 메달리온 색도 밝은 톤으로 변경</li><li><strong>조명 풀(멈춤 수정)</strong><ul><li><code>mountArtwork</code>·<code>placeArtworksInScene</code>은 조명을 직접 만들지 않고 "이 자리에 조명이 필요하다"는 정보(spec)만 쌓음</li><li><strong><code>buildLightPool()</code></strong> — 어느 위치에서든 동시에 필요한 최대 개수만큼 조명을 <strong>한 번만</strong> 만듦. 앞쪽 <code>shadowN</code>개(한 방의 최대 작품 수)만 그림자를 켬</li><li><strong><code>updateRoomLighting(seg)</code></strong> — 지금 있는 구간이 바뀔 때만, 현재 방 작품에는 그림자 조명을, 가까운 다른 방에는 나머지 조명을 <strong>옮겨 놓음</strong>. 남는 조명은 밝기 0으로 바닥 아래(<code>LIGHT_PARK_Y</code>)에 둠</li><li>데이터 로드 직후 <code>buildLightPool(); renderer.compile(scene, camera);</code> — 멀리 있는 방 재질까지 미리 컴파일</li></ul></li><li>파일 끝: <code>window.artworksLoadPromise = loadArtworksData().then(…)</code></li></ul>
+<h3>7.6 <code>js/lobby.js</code> — 로비 리뉴얼 (Phase 9)</h3>
+<ul><li><strong><code>buildLobbyGarden()</code></strong> — 창밖 풍경. 모두 조명 영향을 받지 않는 <code>MeshBasicMaterial</code>(<code>fog:false</code>)<ul><li>하늘: 반지름 70 구(안쪽 면)에 하늘 그라데이션·구름·먼 숲(<code>drawSkyDome</code>)</li><li>잔디 평면(<code>drawLawn</code>), 유리문 앞 돌길(<code>drawPaving</code>)</li><li>나무 띠: 반지름 16의 <strong>열린 반원통</strong>(안쪽 면, 투명)에 나무·생울타리(<code>drawGardenTrees</code>). 양 끝이 로비 옆벽 뒤로 숨어 어느 각도에서도 끝이 보이지 않음</li></ul></li><li><strong><code>buildLobbyGlassWall()</code></strong> — 투명도 0.08 유리, 짙은 철제 틀(세로 창살·가로대·가운데 문틀), 브라스 손잡이</li><li><strong><code>buildLobbyCeilingLines()</code></strong> — 천장에 가는 흰 선 조명 3줄(발광 재질, 실제 조명 아님)</li><li><strong><code>LOBBY_PROP_BUILDERS</code> / <code>buildLobbyProps()</code></strong> — 창가 오크 벤치 2개(x=±3.2), 모서리 키 큰 화분 2개. <code>placeProp</code>으로 부딪힘 등록</li><li><code>LOBBY_GLASS_Z = LOBBY.maxZ</code></li></ul>
+<h3>7.7 <code>js/controls.js</code> — 이동·충돌·조이스틱</h3>
+<ul><li><strong><code>findSegment</code>, <code>clampToSegment</code></strong> — 세그먼트 판정, 폭 방향 제한</li><li><strong><code>isWalkable(x, z)</code> / <code>PLAYER_RADIUS</code>(0.3)</strong> — 몸 네 모서리가 모두 <code>SEGMENTS</code> 안에 있고, <strong><code>PROP_OBSTACLES</code>와 겹치지 않아야</strong> 서 있을 수 있음</li><li><strong><code>clampPlayerPosition(pos, prev)</code></strong> — 벽·소품 너머면 z만 → x만 → 전부 되돌리는 순서(벽을 따라 미끄러짐)</li><li>모바일 조이스틱·시선 드래그·탭 선택, 초기화 전체 <code>try/catch</code></li></ul>
+<h3>7.8 <code>js/viewer.js</code> — 화면 루프·시작 화면·작품 창</h3>
+<ul><li><strong><code>animate()</code></strong> — 매 프레임 시선·이동·조명(<code>updateRoomLighting</code>)·방 이름 갱신</li><li><strong><code>openModal</code> / <code>closeModal</code> / <code>openImageZoom</code></strong>, <strong><code>renderLikes</code>, <code>renderComments</code>, <code>submitComment</code>, <code>toggleCommentHidden</code>, <code>escapeHtml</code></strong></li><li><strong>교사 버튼 묶음 <code>#teacherBar</code></strong> — 교사로 입장했을 때만 표시. <code>#backToStartBtn</code>("↩ 처음 화면으로")은 <code>location.reload()</code> — 로그인 세션이 남아 있어 새로고침하면 시작 화면(입장·업로드 관리자·QR)으로 돌아감. <code>#logoutBtn</code>은 <code>logoutTeacher(btn)</code></li><li>좁은 화면(560px 이하)에서는 전시실 이름표와 겹치지 않게 한 줄 아래(<code>top:54px</code>)로 내림</li></ul>
+<h3>7.9 <code>js/admin-upload.js</code> · <code>js/admin-manage.js</code> · <code>js/report.js</code></h3>
+<ul><li>업로드: <code>parseArtworkFilename</code>, <code>assignRoomCounts</code>, <code>uploadAllArtworks()</code>, 교사 승인 탭 <code>loadTeachersList()</code></li><li>관리: <code>loadExhibitionsList()</code>(내 전시만, ⭐ 현재 전시), <code>set_active_exhibition</code>, <code>renderMgRooms</code>, <code>applyRoomOrder</code>, 작품 수정·삭제·추가</li><li><strong>[Phase 8] 전시실 테마 설정</strong> — 전시실마다 테마 선택 상자 + 색 견본 + "소품 표시" 체크. 바꾸면 바로 <code>rooms</code>에 저장하고, 실패하면 원래 값으로 되돌림</li><li>리포트: <code>fetchImageAsDataURL</code>, <code>buildAppreciationReportHtml</code>(템플릿 속 <code>&lt;\/script&gt;</code> 이스케이프 유지), <code>generateAppreciationReport()</code></li></ul>
+<h3>7.10 <code>css/style.css</code></h3>
+<ul><li>시작·로그인 화면 "미술관 입장권": <code>.ticket</code>, 뜯는 부분 공용 클래스 <code>.ticket-stub</code>, 색 토큰 <code>--paper</code>·<code>--ink</code>·<code>--blue</code>·<code>--mustard</code>·<code>--oak</code></li><li><code>#teacherBar</code>(오른쪽 위 고정, 버튼 간격 8px), 관리 화면의 테마 선택·색 견본 스타일</li></ul>
+    </section>
+    <section id="sec-8"><h2>8. 주요 의사결정과 이유</h2>
+<div class="table-wrap"><table><thead><tr><th>결정</th><th>이유</th></tr></thead><tbody><tr><td>회원가입 즉시 교사 → <strong>관리자 승인제</strong></td><td>가입이 열려 있어 학생이 아무 이메일로 가입해 전시 전체를 지울 수 있었음</td></tr><tr><td>전시에 <code>owner_id</code>, 교사별 <code>is_active</code> 하나, 공유 링크는 교사 코드(<code>?t=</code>)</td><td>다른 교사의 전시 분리 + 현재 전시를 바꿔도 인쇄한 QR을 계속 사용</td></tr><tr><td>정책 헬퍼를 <code>private</code> 스키마에, 좋아요는 헤더 + <code>like_counts()</code></td><td>공격 면 축소, 비로그인 방문자 구분</td></tr><tr><td>파일 분리는 모듈화 없이 "잘라서 옮기기"</td><td>빌드 도구 없이 GitHub Pages 배포 방식을 그대로 유지</td></tr><tr><td><strong>[8] 테마는 전시실 단위로 고르게</strong></td><td>한 전시 안에서도 방마다 주제(예: 숲 그림 방, 바다 그림 방)를 달리할 수 있게</td></tr><tr><td><strong>[8] 테마를 4단계(틀 → 테마 → 소품 → DB 연결)로 나눠 진행</strong></td><td>단계마다 "클래식은 변경 전과 픽셀 단위로 같다"를 확인해 기존 전시가 바뀌지 않음을 보장. DB 연결은 맨 마지막에 해 그전까지는 운영 데이터에 영향 없음</td></tr><tr><td><strong>[8] 무늬는 이미지 파일 대신 캔버스로 그림</strong></td><td>저장소에 이미지 파일을 늘리지 않고, 색·밀도를 코드에서 바로 조정</td></tr><tr><td><strong>[8] 기존 전시실은 모두 <code>classic</code> 기본값</strong></td><td>마이그레이션만으로는 어떤 전시도 모습이 바뀌지 않게. 교사가 직접 고를 때만 바뀜</td></tr><tr><td><strong>[8] 소품은 감상 공간·통로를 비우는 자리에만, 부딪힘 처리</strong></td><td>작품 앞을 가리거나 길을 막지 않게. 통과되는 소품은 어색함</td></tr><tr><td><strong>[멈춤] 조명을 지웠다 만들지 않고 "조명 풀"에서 옮기기</strong></td><td>three.js는 조명 개수가 바뀌면 모든 재질의 셰이더를 다시 컴파일함 → 휴대폰에서 1~3초 멈춤. 개수를 고정하면 다시 컴파일이 일어나지 않음</td></tr><tr><td><strong>[멈춤] 로드 직후 <code>renderer.compile</code></strong></td><td>처음 보는 방의 재질도 미리 준비해 첫 방문 때 멈추지 않게</td></tr><tr><td><strong>"처음 화면으로"는 새로고침으로 구현</strong></td><td>로그인 세션이 유지되므로 새로고침만으로 시작 화면에 돌아옴. 3D 장면을 정리하는 별도 코드가 필요 없고 상태가 꼬일 일이 없음</td></tr><tr><td><strong>[9] 로비 뒤쪽은 "유리벽 + 바깥 정원", 톤은 "밝은 화이트"</strong> (사용자 선택)</td><td>검은 배경을 가리면서 현대 미술관 분위기. 막힌 벽보다 개방감이 있음</td></tr><tr><td><strong>[9] 로비 밝기는 조명 추가 대신 발광 재질로</strong></td><td>조명 수가 늘면 멈춤이 다시 생기고 휴대폰 부담도 커짐</td></tr><tr><td><strong>[9] 바깥 풍경은 조명 영향 없는 재질 + 안개 끔</strong></td><td>실내 조명·안개 때문에 하늘이 회색으로 바래지 않게, 계산도 가벼움</td></tr><tr><td><strong>[9] 나무 띠를 평면 대신 열린 반원통으로</strong></td><td>평면은 비스듬히 보면 끝이 드러남. 반원통의 양 끝은 로비 옆벽 뒤에 숨음</td></tr><tr><td><strong>[9] 로비 파일(<code>lobby.js</code>)을 따로 분리</strong></td><td><code>scene.js</code>가 이미 커서, 로비 장식만 따로 고치기 쉽게</td></tr></tbody></table></div>
+    </section>
+    <section id="sec-9"><h2>9. 문제 해결 기록 (누적)</h2>
+<h3>9.1 Phase 8~9에서 해결한 문제</h3>
+<div class="table-wrap"><table><thead><tr><th>증상</th><th>원인</th><th>해결</th></tr></thead><tbody><tr><td>휴대폰에서 다음 전시실로 넘어갈 때 1~2초(측정 최대 2.95초) 멈춤</td><td>가까운 방 조명만 씬에 넣었다 뺐다 하면서 조명 개수가 바뀌어 셰이더 재컴파일(방마다 새 프로그램 3개)</td><td>조명 풀(개수 고정, 위치만 이동) + 로드 직후 미리 컴파일 → 방 이동 1~3ms, 새 프로그램 0개</td></tr><tr><td>교사가 전시장을 본 뒤 설정을 바꾸려면 로그아웃 → 재로그인 필요</td><td>전시장 안에서 시작 화면으로 돌아가는 길이 없음</td><td>"↩ 처음 화면으로" 버튼(새로고침, 세션 유지)</td></tr><tr><td>로비 뒤쪽에 검은 배경이 보임</td><td>로비 입구 쪽이 벽 없이 열려 있었음</td><td>통유리벽 + 바깥 정원</td></tr><tr><td>나무 띠의 끝이 비스듬한 각도에서 보임</td><td>평평한 판 하나로 그림, 넓혀도 해결 안 됨</td><td>열린 반원통으로 교체, 캔버스 비율(2048 폭)과 나무 개수를 폭에 맞춰 조정</td></tr><tr><td>흰 벽에 간판 스포트라이트가 하얗게 타서 얼룩</td><td>밝은 벽에 강한 조명</td><td>간판 조명 세기 1.6→0.6 / 1.4→0.8, 가장자리를 부드럽게(penumbra 0.8)</td></tr><tr><td>흰 벽이 연보라색으로 보임</td><td>푸른 환경광이 흰 벽에 그대로 드러남</td><td>벽 바탕색을 살짝 낮추고 따뜻한 발광 추가</td></tr><tr><td>화분 잎이 회녹색으로 바래 보임</td><td>sRGB 출력에서 색이 밝고 연해짐</td><td>더 진하고 채도 높은 녹색 + 발광</td></tr><tr><td>밝은 테마의 벽이 어둡게 보임</td><td>작품 스포트라이트만으로는 방 전체가 어두움</td><td>테마별 방 가운데 보조광(그림자 없음), 역시 조명 풀에 포함</td></tr></tbody></table></div>
+<h3>9.2 Phase 7에서 해결한 문제</h3>
+<div class="table-wrap"><table><thead><tr><th>증상</th><th>원인</th><th>해결</th></tr></thead><tbody><tr><td>로그인만 하면 누구나 모든 데이터 수정·삭제 가능</td><td>RLS 조건이 <code>authenticated</code> 하나뿐</td><td>교사 승인제 + 소유자 기반 정책</td></tr><tr><td>비로그인 방문자가 모든 좋아요 삭제 가능</td><td><code>likes</code> 삭제 정책 <code>true</code></td><td>요청 헤더의 방문자 키와 같은 행만</td></tr><tr><td>댓글 80자 제한 우회</td><td><code>maxlength</code>에만 의존</td><td>DB 체크 제약</td></tr><tr><td>연결 통로 등에서 벽을 뚫고 빈 공간으로 들어감</td><td>앞뒤(z) 방향 판정 없음</td><td><code>isWalkable</code> + 벽 따라 미끄러짐</td></tr><tr><td>시작 화면 제목 겹침·잘림</td><td>가운데 큰 제목 + 배경 <code>cover</code></td><td>입장권 패널, 배경 <code>left top</code></td></tr><tr><td>낱말 중간 줄바꿈</td><td>한국어 기본 줄바꿈</td><td><code>word-break: keep-all</code></td></tr><tr><td>SQL <code>''::json</code> 오류 가능성</td><td>연결 풀에서 헤더가 빈 문자열</td><td><code>nullif(..., '')::json</code></td></tr></tbody></table></div>
+<h3>9.3 Phase 6까지 해결한 문제</h3>
+<div class="table-wrap"><table><thead><tr><th>증상</th><th>원인</th><th>수정</th><th>Phase</th></tr></thead><tbody><tr><td>방이 여러 개면 작품이 어둡게 나옴</td><td>그림자 조명 수가 WebGL 한계 초과</td><td>가까운 방만 조명 활성화(이후 조명 풀로 발전)</td><td>4</td></tr><tr><td>방과 방 구분이 안 됨</td><td>같은 톤 일직선</td><td>문틀, 복도 바닥 톤, 방별 색 띠</td><td>4</td></tr><tr><td>일직선 동선이 단조로움</td><td>일렬 연결</td><td>ㅁ자 순환 구조</td><td>4</td></tr><tr><td>문틀 떨림(z-fighting)</td><td>깊이 정밀도 부족</td><td><code>logarithmicDepthBuffer</code>, <code>far</code> 120</td><td>4</td></tr><tr><td>모바일에서 진행 불가</td><td>nipplejs CDN 실패 시 스크립트 중단</td><td>조이스틱 자체 구현 + <code>try/catch</code></td><td>6</td></tr><tr><td>리포트 템플릿의 <code>&lt;/script&gt;</code></td><td>HTML 파서가 실제 태그로 처리</td><td><code>&lt;\/script&gt;</code> 이스케이프</td><td>6</td></tr></tbody></table></div>
+    </section>
+    <section id="sec-10"><h2>10. 보안·성능 고려사항</h2>
+<p><strong>보안</strong></p>
+<ul><li><strong>anon key</strong>는 공개되어도 되는 키이며 보호는 RLS가 담당합니다. Service Role Key는 절대 코드에 넣지 않습니다.</li><li><strong>Supabase Auth</strong>: 회원가입 허용(승인제), 이메일 인증 켬, Google 로그인 꺼짐(버튼 숨김).</li><li><strong>보안 진단 현황</strong>: 방문자용으로 의도적으로 공개한 SECURITY DEFINER 함수 경고 2건, 유출 비밀번호 차단 꺼짐 경고 1건.</li><li>Phase 8의 <code>rooms.theme</code>은 체크 제약으로 6개 값만 허용 — 잘못된 값이 저장되지 않음. 앱도 모르는 키는 클래식으로 처리.</li></ul>
+<p><strong>성능 (3D)</strong></p>
+<ul><li><strong>조명 개수는 처음 한 번 정한 뒤 바꾸지 않습니다.</strong> 조명을 추가·삭제하거나 그림자 켜기/끄기를 바꾸면 셰이더 재컴파일로 멈춤이 생깁니다. 새 장식은 발광 재질이나 <code>MeshBasicMaterial</code>로 밝기를 냅니다.</li><li>그림자는 현재 방 작품 조명만(그림자맵 768). 가까운 방(2칸 이내)만 조명을 배치.</li><li>테마 재질은 테마별로 한 번만 만들어 재사용. 무늬 텍스처는 256~512px 캔버스(로비 하늘 1024×512, 나무 띠 2048×384).</li><li>충돌 검사는 프레임당 사각형 십여 개 × 4점 비교로 부담이 거의 없음.</li></ul>
+    </section>
+    <section id="sec-11"><h2>11. 테스트 및 검증</h2>
+<h3>11.1 Phase 8~9에서 수행한 검증</h3>
+<div class="table-wrap"><table><thead><tr><th>대상</th><th>방법</th><th>결과</th></tr></thead><tbody><tr><td>테마 틀·소품 단계(8-1~8-3)</td><td>클래식 테마로 변경 전·후 같은 위치 스크린샷을 픽셀 비교</td><td>완전히 동일</td></tr><tr><td>테마 DB 연결(8-4)</td><td>마이그레이션 적용 후 관리 화면에서 전시실 테마 변경·저장, 전시장에 반영되는지 확인</td><td>정상, 기존 전시실 모두 <code>classic</code></td></tr><tr><td>방 이동 멈춤</td><td>Playwright로 방 사이를 이동하며 <code>renderer.info.programs.length</code>와 이동 시간 측정</td><td>수정 전 이동마다 새 프로그램 3개·1,000~2,950ms → 수정 후 0개·1~3ms. 클래식 화면 픽셀 동일</td></tr><tr><td>처음 화면으로</td><td>교사로 입장 → 버튼 → 시작 화면(업로드 관리자·QR) 표시, 세션 유지 / 방문자에게는 버튼 안 보임 / 휴대폰 폭에서 이름표와 안 겹침</td><td>정상</td></tr><tr><td>로비 리뉴얼(9-4)</td><td>실제 전시(작품 22점, 방 3개)로 클래식·테마(숲·밤·크레파스) 두 경우, 구간 중심·입구 근처에서 4방향 스크린샷 64장을 <code>main</code>과 비교. 테마는 DB를 바꾸지 않고 요청 가로채기(<code>page.route</code>)로 흉내</td><td>40장 동일, 8장 최대 8/255 차이(로비 옆 복도가 간판 조명 약화로 아주 약간 어두워짐), 16장은 문·복도 너머로 새 로비가 보여서 달라짐. 오류 0, 새 프로그램 0, 이동 최대 2ms</td></tr><tr><td>로비 동선</td><td>걸을 수 있는 칸을 너비 우선 탐색(BFS)</td><td>시작 위치에서 두 문·모든 방 도달 가능, 벤치·화분 자리는 막힘</td></tr><tr><td>배포 사이트</td><td>push 후 실제 주소에서 재검사</td><td>작품 22/22, <code>lobby.js</code> 로드, 새 프로그램 0, 이동 최대 2ms, 페이지 오류 없음(favicon 404만)</td></tr></tbody></table></div>
+<p><strong>회귀 테스트 방법(재사용 가능)</strong>: 스크래치 폴더에 <code>main</code>을 git worktree로 받아 포트 8766, 작업 브랜치를 8765로 띄운 뒤 같은 좌표·방향의 스크린샷을 찍어 PIL로 픽셀 차이(최댓값, 8 초과 픽셀 수)를 비교합니다. Playwright가 파일을 저장할 수 있는 곳은 프로젝트 안 <code>.playwright-mcp/</code>뿐이며, 검사 후 지웁니다.</p>
+<h3>11.2 수동 테스트 체크리스트 (누적)</h3>
+<ol><li>관리자 페이지에서 사진 15장 이상 업로드 → 전시실 3~4개 생성</li><li>로비 왼쪽 문으로 들어가 순서대로 관람, 어디서도 막히지 않는지(특히 연결 통로 앞뒤)</li><li>연결 통로를 지나 반대쪽 동 → 로비 오른쪽 문으로 복귀</li><li>로비 환영 사인에 실제 학년/반, 문틀 떨림 없음, 방마다 다른 색 띠</li><li>작품 8개 이하(전시실 1개)에서도 정상 동작</li><li>시작 화면 QR, 다른 기기로 스캔, "링크 복사"</li><li>모바일: 조이스틱·드래그·탭·첫 입장 안내 카드</li><li>감상 결과 리포트를 <strong>인터넷을 끄고</strong> 열어도 동작</li><li>새 계정 가입 → 승인 대기 → 관리자 승인 → 관리자 버튼 표시</li><li>교사 A의 전시가 교사 B 목록에 안 보임, 교사 링크 <code>?t=내코드</code>로 내 현재 전시가 열림</li><li>좋아요 누르기·취소, 새로고침 후 유지 / 로그아웃 후 로그인 화면</li><li>벽·연결 통로 가운데 벽에 부딪히면 멈추고 비스듬히 부딪히면 미끄러짐</li><li><strong>[Phase 8]</strong> 관리 화면에서 전시실 테마를 바꾸면 바로 저장되고, 전시장에 들어가면 그 방의 벽·바닥·액자·소품이 바뀌는지</li><li><strong>[Phase 8]</strong> "소품 표시"를 끄면 그 방의 소품이 사라지는지, 소품에 부딪히면 멈추는지</li><li><strong>[Phase 8]</strong> 테마가 다른 방이 여러 개일 때 <strong>휴대폰에서 방을 옮겨도 끊김이 없는지</strong></li><li><strong>[교사 버튼]</strong> 전시장 안 "↩ 처음 화면으로" → 로그아웃 없이 시작 화면, 방문자에게는 버튼이 안 보임</li><li><strong>[Phase 9]</strong> 로비에서 뒤를 돌아보면 유리벽 너머 정원이 보이고 검은 화면이 없는지, 벤치·화분에 부딪히면 멈추는지</li></ol>
+    </section>
+    <section id="sec-12"><h2>12. 배포</h2>
+<ul><li><strong>방식</strong>: GitHub Pages, <code>main</code> / <code>(root)</code>. push 후 1~2분 안에 자동 반영.</li><li><strong>주소</strong>: <a href="https://poguni.github.io/class-virtual-gallery/">https://poguni.github.io/class-virtual-gallery/</a> (교사별 링크: <code>…/?t=교사코드</code>)</li><li><strong>배포 전 체크</strong>: CSS/JS를 바꿨다면 <code>index.html</code>의 <code>?v=</code> 갱신. 휴대폰에서는 예전 파일이 남아 있을 수 있으니 새로고침 후 확인.</li><li><strong>작업 방식</strong>: 기능마다 <code>feature/...</code> 브랜치에서 작업 → 검증 → 사용자 요청 시 커밋 → <code>main</code>에 합쳐 push → 배포 사이트 확인 → 브랜치 삭제.</li><li><strong>DB 변경 절차</strong>:<ul><li><code>supabase/migrations/</code>에 SQL + <code>supabase/rollback/</code>에 되돌리기 SQL</li><li>오류로 끝나게 바꿔 <strong>시험 실행</strong> → 아무것도 남지 않았는지 확인</li><li>수업이 없는 시간에 <strong>SQL 적용과 앱 push를 한 번에</strong></li><li>보안 진단 재실행 + 배포 사이트 확인</li></ul></li><li><strong>되돌리기</strong><ul><li>테마: <code>supabase/rollback/20261024_room_themes_rollback.sql</code>(컬럼 삭제) + 앱을 <code>65fdcbf</code> 이전으로. 앱만 되돌려도 컬럼은 무시되므로 DB는 그대로 둬도 됨</li><li>교사 승인제: <code>supabase/rollback/20261023_teacher_approval_and_ownership_rollback.sql</code></li><li>로비 리뉴얼만 되돌리기: <code>git revert 103e0e8</code></li></ul></li></ul>
+    </section>
+    <section id="sec-13"><h2>13. 알려진 한계</h2>
+<ul><li><strong>교사마다 방문자에게 공개되는 전시는 하나</strong>입니다.</li><li><strong>현재 전시는 공개용이라</strong>, API를 직접 다루는 사람은 다른 반의 현재 전시를 조회할 수 있습니다(지난 전시는 불가).</li><li><strong>좋아요 중복 방지는 브라우저 기준</strong>입니다.</li><li><strong>댓글 부적절어 필터가 없습니다</strong>(사용자 결정으로 보류).</li><li><strong>진열 순서를 <code>created_at</code>에 의존</strong>합니다.</li><li><strong>JS 파일이 전역 변수를 공유</strong>하므로 불러오는 순서에 의존합니다.</li><li><strong>조명 개수를 늘리는 장식은 넣기 어렵습니다.</strong> 새 장식의 밝기는 발광 재질로만 표현해야 멈춤이 생기지 않습니다.</li><li><strong>테마를 추가하려면 코드(<code>themes.js</code>, <code>props.js</code>)와 DB 체크 제약을 함께 바꿔야</strong> 합니다.</li><li><strong>로비 유리문은 장식</strong>입니다. 열리거나 밖으로 나갈 수 없습니다. 바깥 정원은 그림이라 가까이서 보면 평면적입니다.</li><li><strong>작품 사진이 큰 편(약 1500×2000)</strong>이라, 휴대폰에서 처음 들어갈 때 이미지를 받는 동안 잠깐 버벅일 수 있습니다(방 이동 멈춤과는 별개).</li><li>발표용 테스트 계정의 복사본 전시는 원본과 이미지 파일을 공유합니다.</li><li>로그인 후 처음 들어올 때 한 번 새로고침될 수 있습니다. <code>favicon.ico</code>가 없어 콘솔에 404가 하나 남습니다.</li></ul>
+    </section>
+    <section id="sec-14"><h2>14. 향후 개선 아이디어 / 업데이트 계획</h2>
+<p><strong>다음에 하면 좋을 것</strong></p>
+<ul><li><strong>작품 사진 줄이기</strong>: 업로드할 때 긴 변 1200~1600px 정도로 줄여 저장하면 휴대폰 첫 입장이 빨라지고 저장 용량도 줄어듦</li><li>발표가 끝나면 <strong>테스트 계정 복사본 정리</strong></li><li><code>favicon</code> 추가, Supabase <strong>유출 비밀번호 차단</strong> 켜기</li><li>벽 충돌·방 이동 성능·픽셀 비교 검사를 <strong>스크립트로 저장</strong>해 수정할 때마다 다시 돌릴 수 있게 하기</li></ul>
+<p><strong>여유가 있으면</strong></p>
+<ul><li>새 전시 만들 때부터 <strong>전시실 테마를 고르는 단계</strong>(지금은 만든 뒤 관리 화면에서 변경)</li><li>테마 추가(예: 우주, 겨울, 한옥) — <code>themes.js</code>·<code>props.js</code>·DB 체크 제약 함께 수정</li><li>로비 바깥 풍경을 계절·시간에 따라 바꾸기(봄 꽃, 가을 단풍, 노을)</li><li>댓글 부적절어 필터(보류 해제 시 DB 트리거로)</li><li>교사 한 명이 <strong>여러 반 전시를 동시에 공개</strong>(전시별 공유 코드)</li></ul>
+<p><strong>아이디어 수준</strong></p>
+<ul><li>ES 모듈 + 간단한 번들러로 전환(전역 변수 의존 제거)</li><li>감상 활동 통계(작품별 체류 시간, 인기 작품)</li><li>학생이 자기 작품에 짧은 작가 노트를 남기는 기능, 전시실 입구에 방 주제 설명판</li></ul>
+    </section>
+    <section id="sec-15"><h2>15. 이전 버전(v8) 이후 변경 사항</h2>
+<p><strong>추가</strong></p>
+<ul><li>로그인 화면 입장권 디자인 통일, 관리자 화면 "우리 반 링크" 표시·복사 (<code>b639732</code>)</li><li>전시실 테마 6종(<code>js/themes.js</code>)과 테마별 소품·부딪힘(<code>js/props.js</code>) — Phase 8</li><li>DB <code>rooms.theme</code>(기본 <code>classic</code>, 6종 제약), <code>rooms.show_props</code>(기본 켬) + 마이그레이션·되돌리기 SQL</li><li>관리 화면 전시실별 테마 선택·색 견본·소품 표시</li><li>전시장 안 교사용 "↩ 처음 화면으로" 버튼(<code>#teacherBar</code>)</li><li>로비 유리벽·바깥 정원·천장 선 조명·창가 벤치·화분(<code>js/lobby.js</code>) — Phase 9</li></ul>
+<p><strong>변경</strong></p>
+<ul><li>작품 조명을 "가까운 방 조명 넣고 빼기"에서 <strong>고정 개수 조명 풀</strong>로, 로드 직후 미리 컴파일</li><li>로비 재질을 어두운 톤에서 흰 벽·테라초 바닥·흰 천장으로, 메달리온 색 밝게, 간판 조명 약하게</li><li>전시장 안 로그아웃 버튼을 <code>#teacherBar</code> 묶음으로 옮김(좁은 화면에서는 한 줄 아래)</li><li>README 파일 목록에 <code>themes.js</code>·<code>props.js</code>·<code>lobby.js</code> 추가</li></ul>
+<p><strong>해결</strong></p>
+<ul><li>휴대폰에서 방을 옮길 때 1~3초 멈춤</li><li>교사가 전시장에서 설정 화면으로 돌아가려면 로그아웃해야 했던 불편</li><li>로비 뒤쪽에 보이던 검은 배경</li></ul>
+<p><strong>제거</strong></p>
+<ul><li>개발 중 테스트용 주소 옵션 <code>?theme=</code>, <code>?props=0</code> (8-4에서 DB 설정으로 대체)</li></ul>
+<p><strong>DB 작업 기록</strong></p>
+<ul><li><code>20261024_room_themes.sql</code> 적용(기존 전시실 모두 <code>classic</code>, 정책 변경 없음)</li></ul>
+    </section>
+  </main>
+</div>
+<script>
+  const links = document.querySelectorAll('nav.sidebar a');
+  const sections = [...links].map(a => document.querySelector(a.getAttribute('href')));
+  const setActive = (id) => links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + id));
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => { if (entry.isIntersecting) setActive(entry.target.id); });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  sections.forEach((el) => el && observer.observe(el));
+</script>
+</body>
+</html>
