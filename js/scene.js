@@ -50,6 +50,19 @@ const doorFrameMat = new THREE.MeshStandardMaterial({ color:0xcaa15a, roughness:
 // 로비 전용 브라스 라인 디테일 — doorFrameMat보다 더 밝고 광택 있게 잡아, 로비 출입문만
 // "한 단계 더 세련된" 느낌을 주고 전시실 문틀(doorFrameMat)과는 톤을 구분한다
 const lobbyBrassMat = new THREE.MeshStandardMaterial({ color:0xe0bd7a, roughness:0.22, metalness:0.75 });
+// 로비 전용 화이트 재질 (Phase 9-2) — 로비만 밝은 현대 미술관 톤, 복도·전시실은 위 재질 그대로.
+// 실제 조명을 늘리면 조명 수가 바뀌어 셰이더 재컴파일로 화면이 멈추므로, emissive(자체 밝기)로 기본 밝기를 올린다
+function drawTerrazzo(ctx, s) {
+  const rand = seededRandom(9511);
+  ctx.fillStyle = "#dcd8d0"; ctx.fillRect(0, 0, s, s);
+  drawSpeckles(ctx, s, rand, 30, ["#d3cfc6", "#e4e1da"], 50, 0.3);
+  drawSpeckles(ctx, s, rand, 900, ["#a8a39a", "#8f8a82", "#c9b28a", "#f2efe9", "#b7b2aa"], 2.4, 0.8);
+}
+const lobbyFloorTex = makeThemeTexture(512, drawTerrazzo);
+const lobbyFloorMat = tiledMaterial(2.5, { map:lobbyFloorTex, emissive:0xffffff, emissiveMap:lobbyFloorTex, emissiveIntensity:0.35, roughness:0.35, metalness:0.05 });
+// (환경광이 푸른 기라 흰 벽이 보랏빛으로 보이지 않도록, 바탕색은 조금 낮추고 따뜻한 자체 밝기를 더 줌)
+const lobbyWallMat = new THREE.MeshStandardMaterial({ color:0xe6e2da, emissive:0xfff1e0, emissiveIntensity:0.45, roughness:0.9 });
+const lobbyCeilMat = new THREE.MeshStandardMaterial({ color:0xeae6df, emissive:0xfff3e6, emissiveIntensity:0.4, roughness:1 });
 // 전시실마다 순서대로 돌려쓰는 포인트 컬러 (입구 스트라이프에 사용, 방마다 다른 색으로 구분감을 줌)
 const ROOM_ACCENT_COLORS = [0x4a86b5, 0xd9973d, 0x6a9c5b, 0xb0608f, 0xc4562f];
 
@@ -84,7 +97,7 @@ function buildFloorCeil(minX,maxX,minZ,maxZ,h,floorMaterial,ceilMaterial) {
   ceil.position.set((minX+maxX)/2, h, (minZ+maxZ)/2);
   scene.add(ceil);
 }
-buildFloorCeil(LOBBY.minX,LOBBY.maxX,LOBBY.minZ,LOBBY.maxZ,LOBBY.h);
+buildFloorCeil(LOBBY.minX,LOBBY.maxX,LOBBY.minZ,LOBBY.maxZ,LOBBY.h, lobbyFloorMat, lobbyCeilMat);
 
 // material: 전시실 테마의 벽 재질 (생략하면 로비·복도용 기본 wallMat)
 function wallSeg(x1,z1,x2,z2,h,material) {
@@ -99,12 +112,12 @@ function wallSeg(x1,z1,x2,z2,h,material) {
 }
 
 // 로비 벽 (입구 쪽 z=maxZ는 개방)
-wallSeg(LOBBY.minX,LOBBY.minZ, LOBBY.minX,LOBBY.maxZ, LOBBY.h); // 좌
-wallSeg(LOBBY.maxX,LOBBY.minZ, LOBBY.maxX,LOBBY.maxZ, LOBBY.h); // 우
+wallSeg(LOBBY.minX,LOBBY.minZ, LOBBY.minX,LOBBY.maxZ, LOBBY.h, lobbyWallMat); // 좌
+wallSeg(LOBBY.maxX,LOBBY.minZ, LOBBY.maxX,LOBBY.maxZ, LOBBY.h, lobbyWallMat); // 우
 // 로비 뒷벽: A동으로 나가는 문 + B동에서 돌아오는 문, 두 개를 남기고 세 조각으로 세움
-wallSeg(LOBBY.minX,LOBBY.minZ, WING_CENTER_A-CORR_HALF,LOBBY.minZ, LOBBY.h);
-wallSeg(WING_CENTER_A+CORR_HALF,LOBBY.minZ, WING_CENTER_B-CORR_HALF,LOBBY.minZ, LOBBY.h);
-wallSeg(WING_CENTER_B+CORR_HALF,LOBBY.minZ, LOBBY.maxX,LOBBY.minZ, LOBBY.h);
+wallSeg(LOBBY.minX,LOBBY.minZ, WING_CENTER_A-CORR_HALF,LOBBY.minZ, LOBBY.h, lobbyWallMat);
+wallSeg(WING_CENTER_A+CORR_HALF,LOBBY.minZ, WING_CENTER_B-CORR_HALF,LOBBY.minZ, LOBBY.h, lobbyWallMat);
+wallSeg(WING_CENTER_B+CORR_HALF,LOBBY.minZ, LOBBY.maxX,LOBBY.minZ, LOBBY.h, lobbyWallMat);
 
 /* ---------- 로비 전용 디자인 디테일 (Phase 5.5) ----------
    전시실은 지금의 무채색·차분한 톤을 그대로 유지하고, 로비만 "감상 전 전환 공간"으로서
@@ -130,17 +143,17 @@ addLobbyCoveLight(LOBBY.minX,LOBBY.minZ, WING_CENTER_A-CORR_HALF,LOBBY.minZ, 0, 
 addLobbyCoveLight(WING_CENTER_A+CORR_HALF,LOBBY.minZ, WING_CENTER_B-CORR_HALF,LOBBY.minZ, 0, 1); // 뒷벽 조각2(두 문 사이)
 addLobbyCoveLight(WING_CENTER_B+CORR_HALF,LOBBY.minZ, LOBBY.maxX,LOBBY.minZ, 0, 1);            // 뒷벽 조각3
 
-// 바닥 중앙 메달리온(인레이 패턴) — 색을 새로 쓰지 않고 기존 바닥 팔레트 안에서
-// 명암 대비만 주는 원형 패턴. 브라스 톤 얇은 링으로 문틀 라인과 톤을 통일했다.
+// 바닥 중앙 메달리온(인레이 패턴) — 테라초 바닥 팔레트 안에서 명암 대비만 주는 원형 패턴.
+// 브라스 톤 얇은 링으로 문틀 라인과 톤을 통일했다.
 function makeLobbyMedallionTexture() {
   const c = document.createElement("canvas"); c.width = 512; c.height = 512;
   const ctx = c.getContext("2d");
   const cx = 256, cy = 256;
   [
-    { r:256, color:"#7d5f3d" }, // 바깥쪽 원목 톤(기존 바닥과 자연스럽게 이어짐)
-    { r:222, color:"#93714b" },
+    { r:256, color:"#c9c4ba" }, // 바깥쪽: 바닥보다 한 톤 짙은 돌
+    { r:222, color:"#e4e0d8" },
     { r:196, color:"#caa15a" }, // 브라스 톤 얇은 링(문틀 라인과 통일감)
-    { r:184, color:"#c9bda3" }, // 폴리시드 콘크리트 톤 중앙 원판
+    { r:184, color:"#d2cdc4" }, // 중앙 원판
   ].forEach(ring => {
     ctx.beginPath(); ctx.arc(cx, cy, ring.r, 0, Math.PI*2);
     ctx.fillStyle = ring.color; ctx.fill();
@@ -152,9 +165,12 @@ function makeLobbyMedallionTexture() {
     ctx.lineTo(cx+Math.cos(a)*182, cy+Math.sin(a)*182);
     ctx.stroke();
   }
-  return new THREE.CanvasTexture(c);
+  const tex = new THREE.CanvasTexture(c);
+  tex.encoding = THREE.sRGBEncoding;
+  return tex;
 }
-const lobbyMedallionMat = new THREE.MeshStandardMaterial({ map:makeLobbyMedallionTexture(), roughness:0.35, metalness:0.15 });
+const lobbyMedallionTex = makeLobbyMedallionTexture();
+const lobbyMedallionMat = new THREE.MeshStandardMaterial({ map:lobbyMedallionTex, emissive:0xffffff, emissiveMap:lobbyMedallionTex, emissiveIntensity:0.35, roughness:0.35, metalness:0.15 });
 const lobbyMedallion = new THREE.Mesh(new THREE.CircleGeometry(1.9, 48), lobbyMedallionMat);
 lobbyMedallion.rotation.x = -Math.PI/2;
 lobbyMedallion.position.set(0, 0.01, (LOBBY.minZ + LOBBY.maxZ) / 2); // 바닥보다 살짝 띄워 z-fighting 방지
@@ -330,7 +346,7 @@ function addLobbyDoorSign(centerX, label, sub) {
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2.3,0.58), new THREE.MeshStandardMaterial({ map:tex, roughness:0.6 }));
   mesh.position.set(centerX, 3.15, LOBBY.minZ + 0.13);
   scene.add(mesh);
-  const light = new THREE.SpotLight(0xfff0d0, 1.4, 7, Math.PI/7, 0.4, 1.2);
+  const light = new THREE.SpotLight(0xfff0d0, 0.8, 7, Math.PI/7, 0.8, 1.2); // 흰 벽에 맞춰 약하게 (9-2, 예전 1.4)
   light.position.set(centerX, 4.3, LOBBY.minZ + 1.6);
   light.target = mesh;
   scene.add(light); scene.add(light.target);
@@ -439,7 +455,8 @@ function buildLobbySign(exhibitionInfo) {
   const sign = new THREE.Mesh(new THREE.PlaneGeometry(4,1), new THREE.MeshStandardMaterial({map:signTex, roughness:0.6}));
   sign.position.set(0, 3.1, LOBBY.minZ + 0.13);
   scene.add(sign);
-  const signLight = new THREE.SpotLight(0xfff0d0, 1.6, 10, Math.PI/7, 0.4, 1.2);
+  // 흰 벽(9-2)에서는 밝은 원이 하얗게 번져 보여서 예전(1.6)보다 약하고 가장자리를 부드럽게
+  const signLight = new THREE.SpotLight(0xfff0d0, 0.6, 10, Math.PI/7, 0.8, 1.2);
   signLight.position.set(0, 4.6, LOBBY.minZ + 2);
   signLight.target = sign;
   scene.add(signLight); scene.add(signLight.target);
