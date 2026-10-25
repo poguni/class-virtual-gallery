@@ -7,9 +7,46 @@
    - 바깥 풍경은 모두 canvas로 그린 그림이며, 조명·안개 영향을 받지 않는 재질(MeshBasic, fog:false)이라
      실제 광원을 늘리지 않는다 (조명 수가 바뀌면 셰이더 재컴파일로 화면이 멈춤 — scene.js 조명 풀 참고)
    - 하늘 돔은 실내 벽에 가려지므로 유리창 너머로만 보인다
+   10-3: 바깥 풍경이 접속한 기기의 날짜·시각에 따라 바뀐다 (계절 4 × 시간대 3).
+        여름 낮은 9-1의 원래 색 그대로이고, 들어올 때 한 번만 그리므로 성능 부담·조명 변화 없음
    ========================================================================= */
 
 const LOBBY_GLASS_Z = LOBBY.maxZ;
+
+// 계절별 색: 잔디 [바탕, 풀결1, 풀결2], 먼 숲 [먼 줄, 가까운 줄], 땅, 나무 머리 [그늘, 중간, 햇빛], 산울타리, 꽃(봄)
+const LOBBY_SEASONS = {
+  spring: { lawn: ["#8fc062", "rgba(80,130,50,0.35)", "rgba(190,225,140,0.35)"], forest: ["#a9c98f", "#8db576"], ground: "#8fbf6a",
+            crowns: ["#5d8f45", "#7fb05e", "#a6cf82"], hedge: ["#5f9447", "#74a85a"], blossom: ["#f7c6d4", "#f2a7bd", "#fbe3ea"] },
+  summer: { lawn: ["#86b45c", "rgba(70,120,45,0.35)", "rgba(175,210,120,0.35)"], forest: ["#9dbb8a", "#7fa36c"], ground: "#88ad6a",
+            crowns: ["#4f7d3f", "#68984f", "#8cb86a"], hedge: ["#5c8a45", "#6f9d54"] },
+  autumn: { lawn: ["#a9a65e", "rgba(130,110,50,0.35)", "rgba(210,190,110,0.35)"], forest: ["#c9a46a", "#b07d48"], ground: "#a89a60",
+            crowns: ["#a8481f", "#d9782f", "#efbf4a"], hedge: ["#8a6a34", "#a57d3c"] },
+  winter: { lawn: ["#e6ecf1", "rgba(180,195,212,0.45)", "rgba(255,255,255,0.6)"], forest: ["#cbd6df", "#aebccb"], ground: "#dfe6ec",
+            crowns: ["#3e5e48", "#cfdbe4", "#f4f7fa"], hedge: ["#dbe3ea", "#c8d3dd"] },
+};
+// 시간대별 하늘 [꼭대기, 중간, 지평선], 구름 색, 땅·나무에 곱하는 빛 색(tint)
+const LOBBY_TIMES = {
+  day:   { sky: ["#6fa6dc", "#a9cdea", "#e3eff6"], cloud: "rgba(255,255,255,0.75)", tint: "#ffffff" },
+  dusk:  { sky: ["#4f5596", "#e58b72", "#ffd29a"], cloud: "rgba(255,186,160,0.7)", tint: "#ffd6bd" },
+  night: { sky: ["#070d2a", "#16224f", "#33457a"], cloud: "rgba(110,125,170,0.3)", tint: "#56628f", stars: true },
+};
+
+// 접속한 기기의 날짜·시각으로 계절(3~5월 봄, 6~8월 여름, 9~11월 가을, 12~2월 겨울)과
+// 시간대(6~17시 낮, 17~19시 노을, 그 밖은 밤)를 정한다
+function getLobbyScenery(now) {
+  const m = now.getMonth() + 1, h = now.getHours();
+  const season = m >= 3 && m <= 5 ? "spring" : m >= 6 && m <= 8 ? "summer" : m >= 9 && m <= 11 ? "autumn" : "winter";
+  const time = h >= 6 && h < 17 ? "day" : h >= 17 && h < 19 ? "dusk" : "night";
+  return { season, time, ...LOBBY_SEASONS[season], ...LOBBY_TIMES[time] };
+}
+const LOBBY_SCENERY = getLobbyScenery(new Date());
+
+// 색에 빛 색을 곱해 노을·밤에 어둡게 (먼 숲처럼 하늘 그림 안에 그린 것에 사용)
+function tintColor(hex, tint) {
+  const a = parseInt(hex.slice(1), 16), b = parseInt(tint.slice(1), 16);
+  const ch = (sh) => Math.round(((a >> sh) & 255) * ((b >> sh) & 255) / 255);
+  return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
+}
 
 function makeCanvasTexture(w, h, draw) {
   const c = document.createElement("canvas"); c.width = w; c.height = h;
@@ -20,25 +57,39 @@ function makeCanvasTexture(w, h, draw) {
 }
 
 // 바깥 풍경 공통 재질: 조명 없이 그린 색 그대로, 안개도 받지 않음
+// (땅·나무는 color에 시간대 빛 색을 넣어 노을·밤에 어둡게 — 하늘은 그림 자체가 시간대 색)
 function outdoorMat(map, extra) {
   return new THREE.MeshBasicMaterial(Object.assign({ map, fog:false }, extra));
 }
+function outdoorLitMat(map, extra) {
+  return outdoorMat(map, Object.assign({ color: new THREE.Color(LOBBY_SCENERY.tint) }, extra));
+}
 
 // 하늘 돔: 위는 파란 하늘, 지평선 쪽은 밝은 하늘색, 지평선 바로 위에 먼 숲, 군데군데 구름
-function drawSkyDome(ctx, w, h) {
+function drawSkyDome(ctx, w, h, look) {
   const horizon = h / 2;
   const sky = ctx.createLinearGradient(0, 0, 0, horizon);
-  sky.addColorStop(0, "#6fa6dc");
-  sky.addColorStop(0.65, "#a9cdea");
-  sky.addColorStop(1, "#e3eff6");
+  sky.addColorStop(0, look.sky[0]);
+  sky.addColorStop(0.65, look.sky[1]);
+  sky.addColorStop(1, look.sky[2]);
   ctx.fillStyle = sky; ctx.fillRect(0, 0, w, horizon);
-  ctx.fillStyle = "#88ad6a"; ctx.fillRect(0, horizon, w, h - horizon); // 지평선 아래 (땅에 가려짐)
+  ctx.fillStyle = tintColor(look.ground, look.tint); ctx.fillRect(0, horizon, w, h - horizon); // 지평선 아래 (땅에 가려짐)
+
+  if (look.stars) { // 밤: 별 (구름·숲 무늬가 시간대마다 같도록 따로 seed)
+    const starRand = seededRandom(9151);
+    ctx.fillStyle = "#ffffff";
+    for (let i = 0; i < 260; i++) {
+      ctx.globalAlpha = 0.35 + starRand() * 0.65;
+      ctx.beginPath(); ctx.arc(starRand() * w, starRand() * horizon * 0.85, 0.5 + starRand() * 1.1, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
 
   const rand = seededRandom(9101);
   // 구름: 납작한 흰 타원 여러 개를 겹쳐 뭉게구름처럼
   for (let i = 0; i < 14; i++) {
     const cx = rand() * w, cy = horizon * (0.35 + rand() * 0.45), size = 30 + rand() * 50;
-    ctx.fillStyle = "rgba(255,255,255,0.75)";
+    ctx.fillStyle = look.cloud;
     for (let k = 0; k < 6; k++) {
       ctx.beginPath();
       ctx.ellipse(cx + (rand() - 0.5) * size * 2.2, cy + (rand() - 0.5) * size * 0.35,
@@ -47,8 +98,8 @@ function drawSkyDome(ctx, w, h) {
     }
   }
   // 먼 숲: 지평선 위로 둥근 나무 머리가 이어진 실루엣 (멀수록 흐린 초록)
-  [["#9dbb8a", 26, 0.9], ["#7fa36c", 16, 1]].forEach(([color, height, step]) => {
-    ctx.fillStyle = color;
+  [[look.forest[0], 26, 0.9], [look.forest[1], 16, 1]].forEach(([color, height, step]) => {
+    ctx.fillStyle = tintColor(color, look.tint);
     for (let x = 0; x < w; x += 9 * step) {
       const r = 6 + rand() * height * 0.5;
       ctx.beginPath(); ctx.arc(x, horizon - height * 0.4 - rand() * height * 0.5, r, 0, Math.PI * 2); ctx.fill();
@@ -58,12 +109,12 @@ function drawSkyDome(ctx, w, h) {
 }
 
 // 잔디: 연두 바탕에 짧은 풀결 (타일 반복)
-function drawLawn(ctx, w, h) {
-  ctx.fillStyle = "#86b45c"; ctx.fillRect(0, 0, w, h);
+function drawLawn(ctx, w, h, look) {
+  ctx.fillStyle = look.lawn[0]; ctx.fillRect(0, 0, w, h);
   const rand = seededRandom(9203);
   for (let i = 0; i < 1400; i++) {
     const x = rand() * w, y = rand() * h;
-    ctx.strokeStyle = rand() < 0.5 ? "rgba(70,120,45,0.35)" : "rgba(175,210,120,0.35)";
+    ctx.strokeStyle = rand() < 0.5 ? look.lawn[1] : look.lawn[2];
     ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + (rand() - 0.5) * 3, y - 4 - rand() * 4); ctx.stroke();
   }
@@ -84,8 +135,9 @@ function drawPaving(ctx, w, h) {
 }
 
 // 정원 나무 띠: 투명 배경 위에 둥근 나무 여러 그루와 앞쪽 산울타리 (가운데 돌길 자리는 비움)
-function drawGardenTrees(ctx, w, h) {
+function drawGardenTrees(ctx, w, h, look) {
   const rand = seededRandom(9419);
+  const blossomRand = seededRandom(9467); // 봄꽃은 따로 seed (나무 모양이 계절마다 같도록)
   const ground = h - 8;
   const gap = w * 0.04; // 가운데 돌길이 이어지는 방향은 트여 있게 비우는 반폭
   const count = Math.round(w / 90);
@@ -97,7 +149,7 @@ function drawGardenTrees(ctx, w, h) {
     ctx.fillStyle = "#6b5040";
     ctx.fillRect(x - 4, top + crownR, 8, ground - top - crownR);
     // 나무 머리: 짙은 초록 덩어리 위에 밝은 초록을 왼쪽 위로 비켜 겹쳐 햇빛 받은 느낌
-    [["#4f7d3f", 0, 0, 1], ["#68984f", -0.18, -0.2, 0.75], ["#8cb86a", -0.3, -0.38, 0.42]].forEach(([color, dx, dy, s]) => {
+    [[look.crowns[0], 0, 0, 1], [look.crowns[1], -0.18, -0.2, 0.75], [look.crowns[2], -0.3, -0.38, 0.42]].forEach(([color, dx, dy, s]) => {
       ctx.fillStyle = color;
       for (let k = 0; k < 4; k++) {
         ctx.beginPath();
@@ -106,14 +158,21 @@ function drawGardenTrees(ctx, w, h) {
         ctx.fill();
       }
     });
+    if (look.blossom) { // 봄: 나무 머리 위에 분홍 꽃송이
+      for (let k = 0; k < 26; k++) {
+        const a = blossomRand() * Math.PI * 2, r = Math.sqrt(blossomRand()) * crownR * 0.95;
+        ctx.fillStyle = look.blossom[Math.floor(blossomRand() * look.blossom.length)];
+        ctx.beginPath(); ctx.arc(x + Math.cos(a) * r, top + crownR + Math.sin(a) * r * 0.8, 3 + blossomRand() * 4, 0, Math.PI * 2); ctx.fill();
+      }
+    }
   }
   // 산울타리: 바닥을 따라 낮게 이어진 둥근 관목 줄
   for (let x = 0; x < w; x += 14) {
     if (Math.abs(x - w / 2) < gap) continue;
-    ctx.fillStyle = rand() < 0.5 ? "#5c8a45" : "#6f9d54";
+    ctx.fillStyle = rand() < 0.5 ? look.hedge[0] : look.hedge[1];
     ctx.beginPath(); ctx.arc(x, ground - 10, 14 + rand() * 6, 0, Math.PI * 2); ctx.fill();
   }
-  ctx.fillStyle = "#5c8a45";
+  ctx.fillStyle = look.hedge[0];
   ctx.fillRect(0, ground - 10, w / 2 - gap, 10);
   ctx.fillRect(w / 2 + gap, ground - 10, w / 2 - gap, 10);
 }
@@ -124,16 +183,16 @@ function buildLobbyGarden() {
   // 하늘 돔 (안쪽 면을 그림)
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(70, 48, 24),
-    outdoorMat(makeCanvasTexture(1024, 512, drawSkyDome), { side: THREE.BackSide })
+    outdoorMat(makeCanvasTexture(1024, 512, (ctx, w, h) => drawSkyDome(ctx, w, h, LOBBY_SCENERY)), { side: THREE.BackSide })
   );
   sky.position.copy(center);
   scene.add(sky);
 
   // 잔디밭: 유리벽 바로 바깥부터 하늘 돔 끝까지
-  const lawnTex = makeCanvasTexture(256, 256, drawLawn);
+  const lawnTex = makeCanvasTexture(256, 256, (ctx, w, h) => drawLawn(ctx, w, h, LOBBY_SCENERY));
   lawnTex.wrapS = lawnTex.wrapT = THREE.RepeatWrapping;
   lawnTex.repeat.set(35, 18);
-  const lawn = new THREE.Mesh(new THREE.PlaneGeometry(140, 72), outdoorMat(lawnTex));
+  const lawn = new THREE.Mesh(new THREE.PlaneGeometry(140, 72), outdoorLitMat(lawnTex));
   lawn.rotation.x = -Math.PI / 2;
   lawn.position.set(0, -0.02, LOBBY_GLASS_Z + 36);
   scene.add(lawn);
@@ -143,7 +202,7 @@ function buildLobbyGarden() {
   const pavingTex = makeCanvasTexture(256, 256, drawPaving);
   pavingTex.wrapS = pavingTex.wrapT = THREE.RepeatWrapping;
   pavingTex.repeat.set(1, pathLen / 2.4);
-  const path = new THREE.Mesh(new THREE.PlaneGeometry(2.4, pathLen), outdoorMat(pavingTex));
+  const path = new THREE.Mesh(new THREE.PlaneGeometry(2.4, pathLen), outdoorLitMat(pavingTex));
   path.rotation.x = -Math.PI / 2;
   path.position.set(0, -0.01, LOBBY_GLASS_Z + pathLen / 2);
   scene.add(path);
@@ -154,7 +213,7 @@ function buildLobbyGarden() {
   const treeRingR = pathLen + 2, overlap = 0.15;
   const trees = new THREE.Mesh(
     new THREE.CylinderGeometry(treeRingR, treeRingR, 12, 64, 1, true, -Math.PI / 2 - overlap, Math.PI + overlap * 2),
-    outdoorMat(makeCanvasTexture(2048, 384, drawGardenTrees), { transparent: true, alphaTest: 0.02, side: THREE.BackSide })
+    outdoorLitMat(makeCanvasTexture(2048, 384, (ctx, w, h) => drawGardenTrees(ctx, w, h, LOBBY_SCENERY)), { transparent: true, alphaTest: 0.02, side: THREE.BackSide })
   );
   trees.position.set(0, 5.6, LOBBY_GLASS_Z);
   scene.add(trees);
