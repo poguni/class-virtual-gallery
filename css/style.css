@@ -192,6 +192,10 @@ canvas { display:block; }
 #authMsg { font-size:13px; color:#2F7A45; display:none; }
 #authMsg.show { display:block; }
 #authSubmitBtn { margin-top:4px; padding:14px 20px; font-size:16px; }
+/* 저장된 로그인 정보로 들어가는 동안: 입력 칸 대신 안내 문구 */
+#authChecking { display:none; padding:24px 0 8px; text-align:center; font-size:15px; color:var(--muted); }
+#authScreen.checking #authChecking { display:block; }
+#authScreen.checking #authTabs, #authScreen.checking #authForm { display:none; }
 #googleLoginBtn {
   width:100%; margin-top:10px; background:#fff; color:var(--ink);
   border:1.5px solid rgba(51,41,31,0.16); border-radius:12px;

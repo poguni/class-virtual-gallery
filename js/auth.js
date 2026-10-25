@@ -69,6 +69,18 @@ document.querySelectorAll(".authTab").forEach(tab => {
 });
 passwordHintEl.style.display = "none"; // 기본은 로그인 탭
 
+// 저장된 로그인 정보(Supabase가 localStorage에 남긴 세션)가 있으면, 확인이 끝날 때까지 입력 칸 대신 안내만 보여줌
+// — 확인하는 동안 전시장을 준비하느라 화면이 잠깐 멈춰 입력이 안 되다가 갑자기 넘어가는 어색함을 없앰
+const authStubEl = authScreenEl.querySelector(".ticket-stub");
+function setAuthChecking(on) {
+  authScreenEl.classList.toggle("checking", on);
+  authStubEl.classList.toggle("hidden", on);
+}
+function hasStoredSession() {
+  try { return Object.keys(localStorage).some(k => /^sb-.+-auth-token$/.test(k)); } catch (e) { return false; }
+}
+if (hasStoredSession()) setAuthChecking(true);
+
 /* ---------- 시작 화면 QR코드 (학부모가 휴대폰으로 스캔해 같은 주소로 접속) ----------
    전시 URL은 배포 후 window.location으로 자동 결정되므로, 저장소/도메인이 바뀌어도
    코드 수정 없이 항상 "지금 보고 있는 이 페이지"의 주소로 QR이 만들어집니다. */
@@ -200,6 +212,7 @@ async function enterWithSession(session) {
     if (!data || data.status !== "approved") {
       await supabaseClient.auth.signOut();
       enteringUserId = null;
+      setAuthChecking(false);
       setAuthMsg(data && data.status === "rejected"
         ? "교사 계정 사용이 승인되지 않았어요. 관리자에게 문의해주세요."
         : "관리자 승인을 기다리고 있어요. 승인된 뒤 다시 로그인해주세요.");
@@ -217,6 +230,7 @@ async function enterWithSession(session) {
     showGalleryEntry(true);
   } catch (err) {
     enteringUserId = null;
+    setAuthChecking(false);
     console.warn("[가상미술관] 교사 계정 확인 실패:", err.message || err);
     setAuthError("계정 정보를 확인하지 못했어요. 잠시 후 다시 시도해주세요.");
   }
@@ -237,4 +251,5 @@ supabaseClient.auth.onAuthStateChange((_event, session) => {
 });
 supabaseClient.auth.getSession().then(({ data }) => {
   if (data.session) enterWithSession(data.session);
-});
+  else setAuthChecking(false); // 저장된 정보가 만료됐거나 없으면 바로 입력 칸을 보여줌
+}).catch(() => setAuthChecking(false));
