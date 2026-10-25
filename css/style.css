@@ -140,6 +140,26 @@ canvas { display:block; }
   transition:background .15s ease;
 }
 #qrCopyLinkBtn:hover { background:rgba(61,106,153,0.08); }
+#qrCanvasWrap { cursor:zoom-in; }
+
+/* QR 크게 보기: 전자칠판 뒷자리에서도 스캔되도록 화면 짧은 변의 대부분을 채움 */
+#qrZoom {
+  position:fixed; inset:0; z-index:2; display:none;
+  align-items:center; justify-content:center; padding:16px;
+  background:rgba(20,14,8,0.82); cursor:zoom-out;
+}
+#qrZoom.open { display:flex; }
+.qr-zoom-card {
+  display:flex; flex-direction:column; align-items:center; gap:14px;
+  background:var(--paper); color:var(--ink); border-radius:20px; padding:22px 22px 18px;
+}
+.qr-zoom-code { background:#fff; padding:12px; border-radius:12px; line-height:0; }
+.qr-zoom-code img, .qr-zoom-code canvas { display:block; width:min(72vmin, 640px); height:min(72vmin, 640px); }
+.qr-zoom-caption { font-size:clamp(15px, 2.6vmin, 24px); font-weight:700; text-align:center; }
+#qrZoomCloseBtn {
+  background:transparent; border:1.5px solid rgba(51,41,31,0.25); color:var(--ink);
+  font-size:14px; font-weight:700; padding:7px 16px; border-radius:10px; cursor:pointer;
+}
 
 #authScreen button:focus-visible, #startScreen button:focus-visible { outline:3px solid var(--mustard); outline-offset:2px; }
 

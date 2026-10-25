@@ -114,6 +114,34 @@ function renderEntryQR() {
 }
 renderEntryQR();
 
+// QR 크게 보기 — 작은 QR을 늘리면 흐려지므로 열 때마다 큰 크기로 새로 그림
+const qrZoomEl = document.getElementById("qrZoom");
+function openQRZoom() {
+  if (typeof QRCode === "undefined") return;
+  const code = document.getElementById("qrZoomCode");
+  code.innerHTML = "";
+  new QRCode(code, {
+    text: getShareUrl(),
+    width: 640,
+    height: 640,
+    colorDark: "#2b1a0d",
+    colorLight: "#ffffff",
+    correctLevel: QRCode.CorrectLevel.M
+  });
+  qrZoomEl.classList.add("open");
+  document.getElementById("qrZoomCloseBtn").focus();
+}
+function closeQRZoom() { qrZoomEl.classList.remove("open"); }
+const qrCanvasWrapEl = document.getElementById("qrCanvasWrap");
+qrCanvasWrapEl.addEventListener("click", openQRZoom);
+qrCanvasWrapEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openQRZoom(); }
+});
+qrZoomEl.addEventListener("click", closeQRZoom); // 카드·닫기 버튼을 눌러도 닫힘
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && qrZoomEl.classList.contains("open")) closeQRZoom();
+});
+
 // 공유 주소를 클립보드에 복사하고 버튼 글자로 결과를 알려줌 — 시작 화면 QR 옆, 관리자 화면 "우리 반 링크"가 함께 사용
 async function copyShareUrl(btn) {
   const shareUrl = getShareUrl();
