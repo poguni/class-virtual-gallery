@@ -316,6 +316,11 @@ async function submitComment() {
     textInput.value = "";
     renderComments();
   } catch (err) {
+    // DB의 부적절어 필터(comments_word_filter)가 거절한 경우 — 쓴 내용은 지우지 않고 고쳐 쓰게 안내
+    if (err.message === "BANNED_WORD") {
+      alert("바르고 고운 말로 다시 써 주세요.\n(이름이나 댓글에 쓸 수 없는 낱말이 들어 있어요)");
+      return;
+    }
     console.warn("[가상미술관] 댓글 등록 실패:", err.message || err);
     alert("댓글 등록에 실패했어요. 잠시 후 다시 시도해주세요.");
   } finally {
