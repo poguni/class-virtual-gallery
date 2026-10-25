@@ -150,6 +150,120 @@ function drawCheckerMat(ctx, s) {
   ctx.beginPath(); ctx.moveTo(h, 0); ctx.lineTo(h, s); ctx.moveTo(0, h); ctx.lineTo(s, h); ctx.stroke();
 }
 
+// 우주정거장 벽: 금속 패널(이음매·리벳)과 별이 보이는 작은 둥근 창
+function drawMetalPanels(ctx, s) {
+  const rand = seededRandom(97);
+  const h = s / 2;
+  ctx.fillStyle = "#c3c8d0"; ctx.fillRect(0, 0, s, s);
+  drawSpeckles(ctx, s, rand, 900, ["#b8bec7", "#cdd2d9"], 1, 0.5);
+  ctx.lineWidth = 3;
+  for (let k = 0; k < 2; k++) { // 이음매: 어두운 선 + 바로 옆 밝은 선
+    ctx.strokeStyle = "#8d949e"; ctx.beginPath(); ctx.moveTo(k * h + 2, 0); ctx.lineTo(k * h + 2, s); ctx.moveTo(0, k * h + 2); ctx.lineTo(s, k * h + 2); ctx.stroke();
+    ctx.strokeStyle = "#dde1e6"; ctx.beginPath(); ctx.moveTo(k * h + 5, 0); ctx.lineTo(k * h + 5, s); ctx.moveTo(0, k * h + 5); ctx.lineTo(s, k * h + 5); ctx.stroke();
+  }
+  ctx.fillStyle = "#9aa1ab";
+  [[0, 0], [h, 0], [0, h], [h, h]].forEach(([px, py]) => [[16, 16], [h - 12, 16], [16, h - 12], [h - 12, h - 12]].forEach(([rx, ry]) => {
+    ctx.beginPath(); ctx.arc(px + rx, py + ry, 3, 0, Math.PI * 2); ctx.fill();
+  }));
+  // 둥근 창 하나 (작품보다 튀지 않게 작게)
+  const cx = h * 1.5, cy = h * 0.5;
+  ctx.fillStyle = "#7c838d"; ctx.beginPath(); ctx.arc(cx, cy, 46, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#141a3a"; ctx.beginPath(); ctx.arc(cx, cy, 38, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  for (let i = 0; i < 14; i++) {
+    const a = rand() * Math.PI * 2, r = rand() * 32;
+    ctx.globalAlpha = 0.5 + rand() * 0.5;
+    ctx.beginPath(); ctx.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 0.8 + rand() * 1.2, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// 우주정거장 바닥: 미끄럼 방지 무늬가 있는 짙은 금속판
+function drawGrating(ctx, s) {
+  const q = s / 4;
+  ctx.fillStyle = "#636871"; ctx.fillRect(0, 0, s, s);
+  ctx.fillStyle = "#737881";
+  for (let y = 0; y < s; y += 16) for (let x = (y / 16) % 2 ? 8 : 0; x < s; x += 16) {
+    ctx.save(); ctx.translate(x + 4, y + 4); ctx.rotate(Math.PI / 4); ctx.fillRect(-5, -1.5, 10, 3); ctx.restore();
+  }
+  ctx.strokeStyle = "#4a4e55"; ctx.lineWidth = 2;
+  for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(k * q + 1, 0); ctx.lineTo(k * q + 1, s); ctx.moveTo(0, k * q + 1); ctx.lineTo(s, k * q + 1); ctx.stroke(); }
+}
+
+// 겨울 벽: 옅은 하늘색 바탕에 흰 눈송이 (타일 가장자리에서 잘리지 않게 안쪽에만)
+function drawSnowflakes(ctx, s) {
+  const rand = seededRandom(83);
+  ctx.fillStyle = "#d9e6f0"; ctx.fillRect(0, 0, s, s);
+  ctx.strokeStyle = "#ffffff"; ctx.lineCap = "round";
+  for (let i = 0; i < 30; i++) {
+    const r = 7 + rand() * 12, x = r + rand() * (s - 2 * r), y = r + rand() * (s - 2 * r);
+    ctx.globalAlpha = 0.5 + rand() * 0.35; ctx.lineWidth = r > 13 ? 2 : 1.4;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rand() * Math.PI);
+    for (let k = 0; k < 6; k++) {
+      ctx.rotate(Math.PI / 3);
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(r, 0);
+      ctx.moveTo(r * 0.55, 0); ctx.lineTo(r * 0.8, -r * 0.22); ctx.moveTo(r * 0.55, 0); ctx.lineTo(r * 0.8, r * 0.22);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// 겨울 바닥: 눈 (흰 바탕에 푸르스름한 알갱이와 은은한 얼룩)
+function drawSnow(ctx, s) {
+  const rand = seededRandom(89);
+  ctx.fillStyle = "#e4eaef"; ctx.fillRect(0, 0, s, s);
+  drawSpeckles(ctx, s, rand, 30, ["#d6dee6", "#f1f4f7"], 40, 0.3);
+  drawSpeckles(ctx, s, rand, 1800, ["#cfd8e1", "#f6f8fa", "#c3cdd8"], 1.2, 0.6);
+}
+
+// 한옥 벽: 한지 바탕에 띠살 창살 (세로살 + 세 줄씩 묶인 가로살)
+function drawHanji(ctx, s) {
+  const rand = seededRandom(101);
+  ctx.fillStyle = "#eee4cd"; ctx.fillRect(0, 0, s, s);
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 700; i++) { // 한지 섬유
+    const x = rand() * s, y = rand() * s, a = rand() * Math.PI, l = 4 + rand() * 10;
+    ctx.globalAlpha = 0.35; ctx.strokeStyle = rand() < 0.5 ? "#e0d4b8" : "#f7f0de";
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); ctx.stroke();
+  }
+  ctx.globalAlpha = 0.32; ctx.fillStyle = "#8b6a48"; // 작품이 돋보이도록 창살은 옅게
+  for (let k = 0; k < 6; k++) ctx.fillRect(s / 12 + k * s / 6 - 2, 0, 4, s);
+  [0.2, 0.75].forEach(f => { for (let k = -1; k <= 1; k++) ctx.fillRect(0, f * s + k * 10 - 2, s, 4); });
+  ctx.globalAlpha = 1;
+}
+
+// 한옥 바닥: 마루 (나뭇결 있는 널빤지 4장)
+function drawMaru(ctx, s) {
+  const rand = seededRandom(103);
+  const w = s / 4;
+  ["#b5834f", "#a8773f", "#bf8f5a", "#ad7c47"].forEach((c, i) => {
+    ctx.fillStyle = c; ctx.fillRect(i * w, 0, w, s);
+    ctx.lineWidth = 1;
+    for (let k = 0; k < 9; k++) { // 나뭇결
+      ctx.globalAlpha = 0.18 + rand() * 0.15; ctx.strokeStyle = "#7a5230";
+      const x0 = i * w + 4 + rand() * (w - 8);
+      ctx.beginPath(); ctx.moveTo(x0, 0);
+      for (let y = 0; y <= s; y += 16) ctx.lineTo(x0 + Math.sin(y / 40 + k) * 2.5, y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#6e4a2a"; ctx.fillRect(i * w, 0, 2, s); // 널빤지 사이 틈
+  });
+}
+
+// 한옥 천장: 서까래 (둥근 나무 기둥이 나란히)
+function drawRafters(ctx, s) {
+  ctx.fillStyle = "#e6dcc6"; ctx.fillRect(0, 0, s, s); // 서까래 사이 회벽
+  const n = 4, w = s / n;
+  for (let i = 0; i < n; i++) {
+    const g = ctx.createLinearGradient(i * w + w * 0.2, 0, i * w + w * 0.8, 0);
+    g.addColorStop(0, "#7a5636"); g.addColorStop(0.45, "#a97f55"); g.addColorStop(1, "#6e4b2e");
+    ctx.fillStyle = g; ctx.fillRect(i * w + w * 0.2, 0, w * 0.6, s);
+  }
+}
+
 /* ---------- 테마 정의 ----------
    swatch: 관리 화면의 색 견본 [벽, 바닥, 강조색]
    accent: 입구 안쪽 색 띠 (null이면 방 순서대로 ROOM_ACCENT_COLORS)
@@ -223,6 +337,42 @@ const ROOM_THEMES = {
       floor: tiledMaterial(1.6, { map: makeThemeTexture(256, drawCheckerMat), roughness: 0.85 }),
       ceil: new THREE.MeshStandardMaterial({ color: 0xfff6e6, roughness: 1 }),
       frame: new THREE.MeshStandardMaterial({ color: 0xf2c230, roughness: 0.5, metalness: 0.05 }),
+    }),
+  },
+  space: {
+    label: "우주정거장",
+    swatch: ["#c3c8d0", "#636871", "#f08a24"],
+    accent: 0xf08a24,
+    fill: { color: 0xeef4ff, intensity: 1.0, distance: 26 },
+    createMaterials: () => ({
+      wall: tiledMaterial(3, { map: makeThemeTexture(512, drawMetalPanels), roughness: 0.55, metalness: 0.3 }),
+      floor: tiledMaterial(1.2, { map: makeThemeTexture(256, drawGrating), roughness: 0.6, metalness: 0.4 }),
+      ceil: new THREE.MeshStandardMaterial({ color: 0xbfc5cd, roughness: 0.8, metalness: 0.2 }),
+      frame: new THREE.MeshStandardMaterial({ color: 0xdfe3e8, roughness: 0.3, metalness: 0.6 }),
+    }),
+  },
+  winter: {
+    label: "눈 내린 겨울",
+    swatch: ["#d9e6f0", "#e4eaef", "#4a7fb0"],
+    accent: 0x4a7fb0,
+    fill: { color: 0xf0f6ff, intensity: 1.0, distance: 26 },
+    createMaterials: () => ({
+      wall: tiledMaterial(3, { map: makeThemeTexture(512, drawSnowflakes), roughness: 0.95 }),
+      floor: tiledMaterial(2, { map: makeThemeTexture(256, drawSnow), roughness: 0.9 }),
+      ceil: new THREE.MeshStandardMaterial({ color: 0xe3ebf2, roughness: 1 }),
+      frame: new THREE.MeshStandardMaterial({ color: 0xe6dccb, roughness: 0.6, metalness: 0.05 }),
+    }),
+  },
+  hanok: {
+    label: "한옥",
+    swatch: ["#eee4cd", "#b5834f", "#b5372e"],
+    accent: 0xb5372e,
+    fill: { color: 0xfff2dc, intensity: 1.0, distance: 26 },
+    createMaterials: () => ({
+      wall: tiledMaterial(5, { map: makeThemeTexture(512, drawHanji), roughness: 0.95 }),
+      floor: tiledMaterial(1.6, { map: makeThemeTexture(256, drawMaru), roughness: 0.55 }),
+      ceil: tiledMaterial(2.4, { map: makeThemeTexture(256, drawRafters), roughness: 0.9 }),
+      frame: new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.55, metalness: 0.05 }),
     }),
   },
 };

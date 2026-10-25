@@ -151,6 +151,128 @@ const PROP_BUILDERS = {
     });
     return { group: g, w: 0.75, d: 0.75 };
   },
+  // 우주정거장: 받침대 위 로켓
+  rocket() {
+    const g = new THREE.Group();
+    const red = propMat("rocketRed", { color: 0xd8432f, roughness: 0.5 });
+    g.add(mesh(new THREE.CylinderGeometry(0.45, 0.5, 0.2, 24), propMat("rocketStand", { color: 0x55595f, roughness: 0.4, metalness: 0.6 }), 0, 0.1, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.26, 0.3, 1.5, 20), propMat("rocketBody", { color: 0xeef0f3, roughness: 0.4, metalness: 0.2 }), 0, 1.05, 0));
+    g.add(mesh(new THREE.ConeGeometry(0.26, 0.55, 20), red, 0, 2.08, 0));
+    for (let i = 0; i < 3; i++) {
+      const fin = mesh(new THREE.BoxGeometry(0.04, 0.5, 0.3), red, 0, 0.5, 0);
+      fin.rotation.y = i * Math.PI * 2 / 3;
+      fin.translateZ(0.32);
+      g.add(fin);
+    }
+    const win = mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.04, 16), propMat("rocketWindow", { color: 0x3d8fd6, emissive: 0x1d5fa0, emissiveIntensity: 0.8, roughness: 0.2 }), 0, 1.35, 0.28);
+    win.rotation.x = Math.PI / 2;
+    g.add(win);
+    return { group: g, w: 0.9, d: 0.9 };
+  },
+  // 우주정거장: 태양전지판을 단 인공위성 (기둥 위)
+  satellite() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.05, 0.08, 1.2, 8), propMat("post", { color: 0x8a8fb0, roughness: 0.4, metalness: 0.6 }), 0, 0.6, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), propMat("satBody", { color: 0xd2a84a, roughness: 0.35, metalness: 0.75 }), 0, 1.4, 0));
+    const panel = propMat("satPanel", { color: 0x22346b, roughness: 0.3, metalness: 0.5, emissive: 0x0b1a40, emissiveIntensity: 0.5 });
+    [-0.5, 0.5].forEach(x => g.add(mesh(new THREE.BoxGeometry(0.55, 0.3, 0.03), panel, x * 1.1, 1.4, 0)));
+    const dish = mesh(new THREE.ConeGeometry(0.16, 0.12, 16, 1, true), propMat("satDish", { color: 0xeef0f3, roughness: 0.4, side: THREE.DoubleSide }), 0, 1.68, 0);
+    dish.rotation.x = Math.PI;
+    g.add(dish);
+    return { group: g, w: 1.6, d: 0.5 };
+  },
+  // 우주정거장: 달 표면 바위 무더기
+  moonRocks() {
+    const g = new THREE.Group();
+    const rock = propMat("moonRock", { color: 0x9a9890, roughness: 1, flatShading: true });
+    [[0, 0.2, 0, 0.36], [0.32, 0.12, 0.2, 0.22], [-0.28, 0.1, 0.18, 0.18], [0.1, 0.1, -0.32, 0.2]].forEach(([x, y, z, r]) => {
+      const m = mesh(new THREE.IcosahedronGeometry(r, 0), rock, x, y, z);
+      m.scale.y = 0.7;
+      g.add(m);
+    });
+    return { group: g, w: 1.0, d: 1.0 };
+  },
+  // 겨울: 눈사람 (목도리·모자)
+  snowman() {
+    const g = new THREE.Group();
+    const snow = propMat("snowBall", { color: 0xe9eef3, roughness: 0.9 });
+    const black = propMat("coal", { color: 0x222222, roughness: 0.8 });
+    g.add(mesh(new THREE.SphereGeometry(0.45, 20, 14), snow, 0, 0.42, 0));
+    g.add(mesh(new THREE.SphereGeometry(0.32, 20, 14), snow, 0, 1.06, 0));
+    g.add(mesh(new THREE.SphereGeometry(0.23, 20, 14), snow, 0, 1.52, 0));
+    const scarf = mesh(new THREE.TorusGeometry(0.22, 0.06, 8, 24), propMat("scarf", { color: 0xc23b3b, roughness: 0.8 }), 0, 1.33, 0);
+    scarf.rotation.x = Math.PI / 2;
+    g.add(scarf);
+    [-0.08, 0.08].forEach(x => g.add(mesh(new THREE.SphereGeometry(0.03, 8, 6), black, x, 1.58, 0.2)));
+    const nose = mesh(new THREE.ConeGeometry(0.04, 0.18, 10), propMat("carrot", { color: 0xf07f2a, roughness: 0.7 }), 0, 1.52, 0.29);
+    nose.rotation.x = Math.PI / 2;
+    g.add(nose);
+    g.add(mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.03, 20), black, 0, 1.71, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.13, 0.14, 0.24, 20), black, 0, 1.84, 0));
+    return { group: g, w: 0.9, d: 0.9 };
+  },
+  // 겨울: 눈 쌓인 전나무
+  snowyPine() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.5, 8), propMat("trunk", { color: 0x6b4a2b, roughness: 0.9 }), 0, 0.25, 0));
+    const pine = propMat("pine", { color: 0x2f5d3a, roughness: 0.9, flatShading: true });
+    const cap = propMat("snowCap", { color: 0xeef2f6, roughness: 0.9, flatShading: true });
+    [[0.55, 0.9, 0.85], [0.42, 0.75, 1.45], [0.28, 0.6, 1.95]].forEach(([r, h, y]) => {
+      g.add(mesh(new THREE.ConeGeometry(r, h, 10), pine, 0, y, 0));
+      g.add(mesh(new THREE.ConeGeometry(r * 0.6, h * 0.45, 10), cap, 0, y + h * 0.3, 0));
+    });
+    return { group: g, w: 1.1, d: 1.1 };
+  },
+  // 겨울: 나무 썰매 (길이 방향이 z)
+  sled() {
+    const g = new THREE.Group();
+    const wood = propMat("sledWood", { color: 0xb5372e, roughness: 0.6 });
+    const metal = propMat("sledRunner", { color: 0x9aa1ab, roughness: 0.3, metalness: 0.7 });
+    [-0.24, 0.24].forEach(x => {
+      g.add(mesh(new THREE.BoxGeometry(0.04, 0.04, 1.2), metal, x, 0.02, 0));
+      const tip = mesh(new THREE.TorusGeometry(0.12, 0.02, 6, 12, Math.PI), metal, x, 0.14, 0.6);
+      tip.rotation.set(0, Math.PI / 2, -Math.PI / 2);
+      g.add(tip);
+      [-0.35, 0.35].forEach(z => g.add(mesh(new THREE.BoxGeometry(0.04, 0.22, 0.04), metal, x, 0.13, z)));
+    });
+    [-0.4, -0.13, 0.13, 0.4].forEach(z => g.add(mesh(new THREE.BoxGeometry(0.6, 0.04, 0.2), wood, 0, 0.26, z)));
+    return { group: g, w: 0.6, d: 1.4 };
+  },
+  // 한옥: 장독대 (돌 단 위 옹기 항아리, 길이 방향이 z)
+  jangdokdae() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(0.8, 0.16, 1.4), propMat("stoneBase", { color: 0x8f8a80, roughness: 1 }), 0, 0.08, 0));
+    const onggi = propMat("onggi", { color: 0x5a3a26, roughness: 0.35, metalness: 0.05 });
+    [[-0.38, 0.3], [0.08, 0.24], [0.45, 0.2]].forEach(([z, r]) => {
+      const jar = mesh(new THREE.SphereGeometry(r, 18, 12), onggi, 0, 0.16 + r * 1.05, z);
+      jar.scale.y = 1.15;
+      g.add(jar);
+      g.add(mesh(new THREE.CylinderGeometry(r * 0.62, r * 0.55, 0.06, 18), onggi, 0, 0.16 + r * 2.25, z));
+    });
+    return { group: g, w: 0.8, d: 1.4 };
+  },
+  // 한옥: 소반 (낮은 둥근 상 위 그릇)
+  soban() {
+    const g = new THREE.Group();
+    const wood = propMat("sobanWood", { color: 0x7a4e2c, roughness: 0.45 });
+    g.add(mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.05, 28), wood, 0, 0.34, 0));
+    [[0.25, 0.25], [-0.25, 0.25], [0.25, -0.25], [-0.25, -0.25]].forEach(([x, z]) => g.add(mesh(new THREE.BoxGeometry(0.05, 0.32, 0.05), wood, x, 0.16, z)));
+    g.add(mesh(new THREE.CylinderGeometry(0.11, 0.07, 0.08, 16), propMat("bowl", { color: 0xe9e4d8, roughness: 0.3 }), 0.1, 0.41, 0.05));
+    return { group: g, w: 0.84, d: 0.84 };
+  },
+  // 한옥: 청사초롱 (나무 걸대에 매단 등 — 발광 재질이라 실제 조명은 늘지 않음)
+  lantern() {
+    const g = new THREE.Group();
+    const wood = propMat("lanternWood", { color: 0x5a3a22, roughness: 0.6 });
+    g.add(mesh(new THREE.BoxGeometry(0.4, 0.06, 0.4), wood, 0, 0.03, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.06, 1.9, 0.06), wood, 0, 0.95, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.06, 0.06, 0.4), wood, 0, 1.88, 0.17));
+    const z = 0.32;
+    g.add(mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.2, 16), propMat("chorongBlue", { color: 0x2c4f9e, emissive: 0x1d3a8a, emissiveIntensity: 0.7, roughness: 0.7 }), 0, 1.6, z));
+    g.add(mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.22, 16), propMat("chorongRed", { color: 0xd23a32, emissive: 0xc8402a, emissiveIntensity: 0.8, roughness: 0.7 }), 0, 1.39, z));
+    g.add(mesh(new THREE.BoxGeometry(0.01, 0.08, 0.01), wood, 0, 1.74, z));
+    return { group: g, w: 0.5, d: 0.5 };
+  },
 };
 
 // 테마별 배치 — center: 가운데 중심선(입구 쪽부터), corners: [바깥쪽 안 모서리, 통로 쪽 안 모서리]
@@ -161,6 +283,9 @@ const THEME_PROP_LAYOUTS = {
   ocean:     { center: [["roundSeat"]], corners: [["coral"], ["coral"]] },
   night:     { center: [["planet"]], corners: [["moonPost"], ["moonPost"]] },
   crayon:    { center: [["crayonStools"], ["giantCrayon"]], corners: [["blockStack"], ["blockStack"]] },
+  space:     { center: [["rocket"]], corners: [["satellite"], ["moonRocks"]] },
+  winter:    { center: [["sled"], ["snowman"]], corners: [["snowyPine"], ["snowyPine"]] },
+  hanok:     { center: [["jangdokdae"], ["soban"]], corners: [["lantern"], ["lantern"]] },
 };
 
 function placeProp(built, x, z) {
