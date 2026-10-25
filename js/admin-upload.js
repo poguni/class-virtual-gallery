@@ -166,7 +166,42 @@ function setupDropzone(zoneEl, onDropFiles) {
   });
 }
 
+// 전시실 테마 고르기 칸(테마 선택 + 색 견본 + 소품 표시) — 새 전시 만들기와 기존 전시 관리가 함께 사용
+// value: { theme, show_props } / onChange(값)은 사용자가 바꿀 때마다 불림
+function createThemePicker(value, onChange) {
+  const el = document.createElement("span");
+  el.className = "admin-theme-picker";
+  const options = Object.entries(ROOM_THEMES)
+    .map(([key, t]) => `<option value="${key}">${escapeHtml(t.label)}</option>`).join("");
+  el.innerHTML = `
+    <select class="admin-theme-select" aria-label="전시실 테마">${options}</select>
+    <span class="admin-theme-swatch" aria-hidden="true"><i></i><i></i><i></i></span>
+    <label class="admin-theme-props"><input type="checkbox" /> 소품 표시</label>
+  `;
+  const select = el.querySelector("select");
+  const propsBox = el.querySelector('input[type="checkbox"]');
+  const paint = () => {
+    const t = ROOM_THEMES[select.value] || ROOM_THEMES[DEFAULT_ROOM_THEME];
+    el.querySelectorAll(".admin-theme-swatch i").forEach((sw, i) => { sw.style.background = t.swatch[i]; });
+    // 클래식은 소품이 없으므로 체크를 잠가 둠 (저장된 값은 그대로 유지)
+    const noProps = !THEME_PROP_LAYOUTS[select.value] || !THEME_PROP_LAYOUTS[select.value].center.length && !THEME_PROP_LAYOUTS[select.value].corners.length;
+    propsBox.disabled = noProps;
+    propsBox.parentElement.title = noProps ? "이 테마에는 소품이 없어요" : "";
+  };
+  const getValue = () => ({ theme: select.value, show_props: propsBox.checked });
+  const setValue = (v) => {
+    select.value = ROOM_THEMES[v.theme] ? v.theme : DEFAULT_ROOM_THEME;
+    propsBox.checked = v.show_props !== false;
+    paint();
+  };
+  setValue(value);
+  select.addEventListener("change", () => { paint(); onChange(getValue()); });
+  propsBox.addEventListener("change", () => onChange(getValue()));
+  return { el, select, propsBox, paint, getValue, setValue };
+}
+
 let adminFiles = []; // { file, student, title, previewUrl }
+let adminRoomThemes = []; // 새 전시의 전시실별 테마 [{ theme, show_props }] — 전시실 수에 맞춰 늘고 줄어듦
 
 document.getElementById("adminFileInput").addEventListener("change", (e) => {
   adminFiles.forEach(item => URL.revokeObjectURL(item.previewUrl));
@@ -198,6 +233,7 @@ function renderAdminTable() {
 
   const counts = assignRoomCounts(adminFiles.length);
   roomPreview.textContent = `총 ${adminFiles.length}장 → ${counts.length}개 전시실 자동 생성 (${counts.join("/")}편)`;
+  renderAdminRoomThemes(counts);
 
   tbody.innerHTML = "";
   adminFiles.forEach((item, i) => {
@@ -242,6 +278,37 @@ function renderAdminTable() {
 
   updateAdminUploadEnabled();
 }
+
+// 전시실마다 테마 고르기 줄 (전시실이 2개 이상이면 맨 위에 "모든 전시실 한 번에" 줄)
+function renderAdminRoomThemes(counts) {
+  const wrap = document.getElementById("adminRoomThemes");
+  // 새로 생긴 전시실은 바로 앞 전시실의 테마를 이어받음 (처음은 클래식)
+  while (adminRoomThemes.length < counts.length) {
+    const last = adminRoomThemes[adminRoomThemes.length - 1];
+    adminRoomThemes.push(last ? { ...last } : { theme: DEFAULT_ROOM_THEME, show_props: true });
+  }
+  adminRoomThemes.length = counts.length;
+
+  wrap.innerHTML = "";
+  const addRow = (label, picker) => {
+    const row = document.createElement("div");
+    row.className = "admin-theme-controls";
+    row.innerHTML = `<span class="admin-order-label"></span>`;
+    row.firstChild.textContent = label;
+    row.appendChild(picker.el);
+    wrap.appendChild(row);
+  };
+  const roomPickers = adminRoomThemes.map((value, i) =>
+    createThemePicker(value, (next) => { adminRoomThemes[i] = next; }));
+  if (counts.length > 1) {
+    addRow("모든 전시실 한 번에", createThemePicker(adminRoomThemes[0], (next) => {
+      adminRoomThemes = adminRoomThemes.map(() => ({ ...next }));
+      roomPickers.forEach(p => p.setValue(next));
+    }));
+  }
+  roomPickers.forEach((p, i) => addRow(`제 ${i + 1} 전시실 (${counts[i]}편)`, p));
+}
+
 document.getElementById("adminSortNameBtn").addEventListener("click", () => {
   sortFilesByStudentName(adminFiles);
   renderAdminTable();
@@ -299,7 +366,7 @@ async function uploadAllArtworks() {
     for (let i = 0; i < counts.length; i++) {
       const { data: roomRow, error: roomErr } = await supabaseClient
         .from("rooms")
-        .insert({ exhibition_id: exhibitionId, room_number: i + 1, name: `제 ${i + 1} 전시실` })
+        .insert({ exhibition_id: exhibitionId, room_number: i + 1, name: `제 ${i + 1} 전시실`, ...adminRoomThemes[i] })
         .select().single();
       if (roomErr) throw new Error(`전시실 ${i+1} 생성 실패: ` + roomErr.message);
       roomIds.push(roomRow.id);

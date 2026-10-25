@@ -161,50 +161,29 @@ async function loadExhibitionDetail(exhibitionId, keepAddStatus) {
 function buildRoomThemeControls(room) {
   const row = document.createElement("div");
   row.className = "admin-theme-controls";
-  const options = Object.entries(ROOM_THEMES)
-    .map(([key, t]) => `<option value="${key}">${escapeHtml(t.label)}</option>`).join("");
-  row.innerHTML = `
-    <span class="admin-order-label">전시실 테마</span>
-    <select class="admin-theme-select" aria-label="전시실 테마">${options}</select>
-    <span class="admin-theme-swatch" aria-hidden="true"><i></i><i></i><i></i></span>
-    <label class="admin-theme-props"><input type="checkbox" /> 소품 표시</label>
-    <span class="admin-row-status"></span>
-  `;
-  const select = row.querySelector("select");
-  const propsBox = row.querySelector('input[type="checkbox"]');
-  const statusEl = row.querySelector(".admin-row-status");
-  const paint = () => {
-    const t = ROOM_THEMES[select.value] || ROOM_THEMES[DEFAULT_ROOM_THEME];
-    row.querySelectorAll(".admin-theme-swatch i").forEach((el, i) => { el.style.background = t.swatch[i]; });
-    // 클래식은 소품이 없으므로 체크를 잠가 둠 (저장된 값은 그대로 유지)
-    const noProps = !THEME_PROP_LAYOUTS[select.value] || !THEME_PROP_LAYOUTS[select.value].center.length && !THEME_PROP_LAYOUTS[select.value].corners.length;
-    propsBox.disabled = noProps;
-    propsBox.parentElement.title = noProps ? "이 테마에는 소품이 없어요" : "";
-  };
-  select.value = ROOM_THEMES[room.theme] ? room.theme : DEFAULT_ROOM_THEME;
-  propsBox.checked = room.show_props !== false;
-  paint();
+  row.innerHTML = `<span class="admin-order-label">전시실 테마</span>`;
+  const picker = createThemePicker(room, (next) => save(next));
+  const { select, propsBox } = picker;
+  const statusEl = document.createElement("span");
+  statusEl.className = "admin-row-status";
+  row.append(picker.el, statusEl);
 
-  const save = async () => {
+  const save = async (next) => {
     const prev = { theme: room.theme, show_props: room.show_props };
-    const next = { theme: select.value, show_props: propsBox.checked };
     select.disabled = propsBox.disabled = true;
     statusEl.textContent = "저장 중..."; statusEl.style.color = "";
     const { error } = await supabaseClient.from("rooms").update(next).eq("id", room.id);
     select.disabled = false;
     if (error) {
       console.warn("[가상미술관] 전시실 테마 저장 실패:", error.message);
-      select.value = ROOM_THEMES[prev.theme] ? prev.theme : DEFAULT_ROOM_THEME;
-      propsBox.checked = prev.show_props !== false;
+      picker.setValue(prev);
       statusEl.textContent = "저장하지 못했어요: " + error.message; statusEl.style.color = "#ff9d8a";
     } else {
       Object.assign(room, next);
       statusEl.textContent = "✅ 저장됐어요 (전시장을 새로 열면 반영돼요)"; statusEl.style.color = "#a7e3b0";
     }
-    paint();
+    picker.paint();
   };
-  select.addEventListener("change", () => { paint(); save(); });
-  propsBox.addEventListener("change", save);
   return row;
 }
 

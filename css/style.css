@@ -485,6 +485,10 @@ canvas { display:block; }
 .admin-order-label { font-size:14px; color:#c9bca3; font-weight:700; }
 /* 전시실 테마 선택 줄 (기존 전시 관리) */
 .admin-theme-controls { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:12px; }
+.admin-theme-picker { display:contents; }
+/* 새 전시 만들기: 전시실별 테마 줄 */
+.admin-room-themes { margin-bottom:16px; }
+.admin-room-themes .admin-order-label { min-width:150px; }
 .admin-theme-select {
   background:#211b14; border:1px solid rgba(255,222,170,0.3); color:#f0dcb8;
   border-radius:8px; padding:7px 12px; font-size:14px; font-family:inherit; cursor:pointer;
